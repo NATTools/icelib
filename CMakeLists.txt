@@ -139,6 +139,8 @@ endif()
 
 
 Include(ExternalProject)
+
+# setup sockaddr dependency
 ExternalProject_Add(
    project_sockaddrutil
    GIT_REPOSITORY https://github.com/NPPT/sockaddrutil.git
@@ -153,6 +155,20 @@ add_library(sockaddrutil STATIC IMPORTED)
 set_property(TARGET sockaddrutil PROPERTY IMPORTED_LOCATION "${install_dir}/lib/${CMAKE_SHARED_MODULE_PREFIX}sockaddrutil${CMAKE_SHARED_LIBRARY_SUFFIX}")
 add_dependencies(sockaddrutil project_sockaddrutil)
 
+# setup stunlib dependency
+ExternalProject_Add(
+   project_stunlib
+   GIT_REPOSITORY https://github.com/NPPT/stunlib.git
+   CMAKE_ARGS -Doptimize=OFF -Duse_context=ON -Dbuild_docs=OFF -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+   INSTALL_DIR "${dist_dir}"
+   UPDATE_DISCONNECTED 1
+)
+
+ExternalProject_Get_Property(project_stunlib install_dir)
+include_directories ( "${install_dir}/include" )
+add_library(stunlib STATIC IMPORTED)
+set_property(TARGET stunlib PROPERTY IMPORTED_LOCATION "${install_dir}/lib/${CMAKE_SHARED_MODULE_PREFIX}stunlib${CMAKE_SHARED_LIBRARY_SUFFIX}")
+add_dependencies(stunlib project_stunlib)
 
 ## include the parts
 add_subdirectory ( include )
