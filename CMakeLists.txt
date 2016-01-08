@@ -113,7 +113,7 @@ set ( CPACK_PACKAGE_DESCRIPTION_FILE ${CMAKE_CURRENT_SOURCE_DIR}/README.md )
 set ( CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE" )
 
 include ( CPack )
-#include ( CTest )
+include ( CTest )
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake)
 include ( LCov )
@@ -143,7 +143,7 @@ Include(ExternalProject)
 # setup sockaddr dependency
 ExternalProject_Add(
    project_sockaddrutil
-   GIT_REPOSITORY https://github.com/NPPT/sockaddrutil.git
+   GIT_REPOSITORY https://github.com/NATTools/sockaddrutil.git
    CMAKE_ARGS -Doptimize=OFF -Duse_context=ON -Dbuild_docs=OFF -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
    INSTALL_DIR "${dist_dir}"
    UPDATE_DISCONNECTED 1
@@ -158,7 +158,7 @@ add_dependencies(sockaddrutil project_sockaddrutil)
 # setup stunlib dependency
 ExternalProject_Add(
    project_stunlib
-   GIT_REPOSITORY https://github.com/NPPT/stunlib.git
+   GIT_REPOSITORY https://github.com/NATTools/stunlib.git
    CMAKE_ARGS -Doptimize=OFF -Duse_context=ON -Dbuild_docs=OFF -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
    INSTALL_DIR "${dist_dir}"
    UPDATE_DISCONNECTED 1
@@ -173,4 +173,4 @@ add_dependencies(stunlib project_stunlib)
 ## include the parts
 add_subdirectory ( include )
 add_subdirectory ( src )
-#add_subdirectory ( test )
+add_subdirectory ( test )
