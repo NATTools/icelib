@@ -94,7 +94,7 @@ extern "C" {
     void ICELIB_createRandomString(char *dst, int maxlength);
 
     uint32_t ICELIB_calculatePriority(ICE_CANDIDATE_TYPE type,
-                                      uint16_t compid, uint16_t local_pref);
+        ICE_TRANSPORT transport, uint16_t compid, uint16_t local_pref);
 
     bool ICELIB_isEmptyCandidate(const ICE_CANDIDATE *pCandidate);
     bool ICELIB_isNonValidCandidate(const ICE_CANDIDATE *pCandidate);
@@ -112,6 +112,7 @@ extern "C" {
                                    uint32_t componentId,
                                    const struct sockaddr *connectionAddr,
                                    const struct sockaddr *relAddr,
+                                   ICE_TRANSPORT transport,
                                    ICE_CANDIDATE_TYPE candType,
                                    uint16_t local_pref);
 
@@ -121,6 +122,7 @@ extern "C" {
                                     uint32_t foundationLen,
                                     uint32_t priority,
                                     struct sockaddr *connectionAddr,
+                                    ICE_TRANSPORT transport,
                                     ICE_CANDIDATE_TYPE candType);
 
     int ICELIB_candidateSort(const void *x, const void *y);
@@ -214,6 +216,7 @@ extern "C" {
 
     unsigned int ICELIB_findStreamByAddress(ICELIB_STREAM_CONTROLLER streamControllers[],
                                             unsigned int numberOfMediaStreams,
+                                            int proto,
                                             const struct sockaddr *pHostAddr);
 
     int ICELIB_listCompareVL(const void *cp1, const void *cp2);
@@ -284,11 +287,13 @@ extern "C" {
     void ICELIB_makePeerLocalReflexiveCandidate(ICE_CANDIDATE *pPeerCandidate,
                                                 ICELIB_CALLBACK_LOG *pCallbackLog,
                                                 const struct sockaddr *pMappedAddress,
+                                                ICE_TRANSPORT transport,
                                                 uint16_t componentId);
 
     void ICELIB_makePeerRemoteReflexiveCandidate(ICE_CANDIDATE *pPeerCandidate,
                                                  ICELIB_CALLBACK_LOG *pCallbackLog,
                                                  const struct sockaddr *sourceAddr,
+                                                 ICE_TRANSPORT transport,
                                                  uint32_t peerPriority,
                                                  uint16_t componentId);
 
@@ -313,6 +318,7 @@ extern "C" {
                                        bool iceControlling);
 
     void ICELIB_sendBindingResponse(ICELIB_INSTANCE *pInstance,
+                                    int proto,
                                     const struct sockaddr *source,
                                     const struct sockaddr *destination,
                                     const struct sockaddr *MappedAddress,
@@ -322,11 +328,11 @@ extern "C" {
                                     uint16_t errorResponse,
                                     StunMsgId transactionId,
                                     bool useRelay,
-                                    const char *pUfragPair,
                                     const char *pPasswd);
 
     void ICELIB_processSuccessRequest(ICELIB_INSTANCE *pInstance,
                                       StunMsgId transactionId,
+                                      int proto,
                                       const struct sockaddr *source,
                                       const struct sockaddr *destination,
                                       const struct sockaddr *relayBaseAddr,
@@ -369,6 +375,7 @@ extern "C" {
                                      bool iceControlled,
                                      uint64_t tieBreaker,
                                      StunMsgId transactionId,
+                                     int proto,
                                      const struct sockaddr *source,
                                      const struct sockaddr *destination,
                                      bool fromRelay,
@@ -446,7 +453,7 @@ extern "C" {
 
     void ICELIB_doKeepAlive(ICELIB_INSTANCE *pInstance);
 
-    StunMsgId ICELIB_generateTransactionId(void);
+    void ICELIB_generateTransactionId(StunMsgId *transactionId);
 
     char *ICELIB_makeUsernamePair(char       *dst,
                                   int         maxlength,
@@ -460,7 +467,8 @@ extern "C" {
 
     void ICELIB_createFoundation(char *dst,
                                  ICE_CANDIDATE_TYPE type,
-                                 int maxlength);
+                                 ICE_TRANSPORT transport,
+                                 size_t maxlength);
 
     void ICELIB_removChecksFromCheckList(ICELIB_CHECKLIST *pCheckList );
 
@@ -579,7 +587,9 @@ extern "C" {
                                          uint32_t timeMultiplier);
 
     const ICE_CANDIDATE *pICELIB_findCandidate(const ICE_MEDIA_STREAM *pMediaStream,
-                                               const struct sockaddr         *address);
+                                               int                     proto,
+                                               const struct sockaddr  *address,
+                                               unsigned                componentId);
 
     void ICELIB_validListIteratorConstructor(ICELIB_VALIDLIST_ITERATOR *pIterator,
                                              ICELIB_VALIDLIST          *pValidList);

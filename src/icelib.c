@@ -29,13 +29,15 @@ or implied, of Cisco.
 
 #include "icelib.h"
 
+#include "sockaddr_util.h"
+#include "icelib_intern.h"
+
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
 
-#include "sockaddr_util.h"
-#include "icelib_intern.h"
 
 
 #if !defined(max)
@@ -43,6 +45,27 @@ or implied, of Cisco.
 #define min(a, b)       ((a) < (b) ? (a) : (b))
 #endif
 
+static bool remoteLocalTransportMatch(ICE_TRANSPORT a, ICE_TRANSPORT b)
+{
+    switch (a) {
+    case ICE_TRANS_UDP:       return b == ICE_TRANS_UDP;
+    case ICE_TRANS_TCPACT:    return b == ICE_TRANS_TCPPASS;
+    case ICE_TRANS_TCPPASS:   return b == ICE_TRANS_TCPACT;
+    }
+
+    abort();
+}
+
+static char const * ICE_TRANSPORT_toString(ICE_TRANSPORT t)
+{
+    switch (t) {
+    case ICE_TRANS_UDP: return "udp";
+    case ICE_TRANS_TCPACT: return "tcpact";
+    case ICE_TRANS_TCPPASS: return "tcppass";
+    }
+
+    abort();
+}
 
 typedef union {
     ICELIB_uint128_t   ui128;
@@ -60,20 +83,22 @@ static void log_debug_pair(ICELIB_CALLBACK_LOG * pCallbackLog,
                            ICELIB_LIST_PAIR *pair,
                            const char *msg)
 {
-    char local[SOCKADDR_MAX_STRLEN], remote[SOCKADDR_MAX_STRLEN];
-    sockaddr_toString((struct sockaddr *)&pair->pLocalCandidate->connectionAddr, local, sizeof(local), true);
-    sockaddr_toString((struct sockaddr *)&pair->pRemoteCandidate->connectionAddr, remote, sizeof(remote), true);
+    if (pCallbackLog) {
+        char local[SOCKADDR_MAX_STRLEN], remote[SOCKADDR_MAX_STRLEN];
+        sockaddr_toString((struct sockaddr *)&pair->pLocalCandidate->connectionAddr, local, sizeof(local), true);
+        sockaddr_toString((struct sockaddr *)&pair->pRemoteCandidate->connectionAddr, remote, sizeof(remote), true);
 
-    ICELIB_logVaString(pCallbackLog, ICELIB_logDebug,
-        "   %2d: %s %21s (%s %d) -> %21s (%s %d) %s", pair->pairId,
-        state2char4[pair->pairState],
-        local,
-        type2char2[pair->pLocalCandidate->type],
-        pair->pLocalCandidate->componentid,
-        remote,
-        type2char2[pair->pRemoteCandidate->type],
-        pair->pRemoteCandidate->componentid,
-        msg);
+        ICELIB_logVaString(pCallbackLog, ICELIB_logInfo,
+            "   %2d: %s %21s (%s %d) -> %21s (%s %d) %s", pair->pairId,
+            state2char4[pair->pairState],
+            local,
+            type2char2[pair->pLocalCandidate->type],
+            pair->pLocalCandidate->componentid,
+            remote,
+            type2char2[pair->pRemoteCandidate->type],
+            pair->pRemoteCandidate->componentid,
+            msg);
+    }
 }
 
 static void debug_log (ICELIB_CALLBACK_LOG * pCallbackLog,
@@ -83,12 +108,34 @@ static void debug_log (ICELIB_CALLBACK_LOG * pCallbackLog,
 {
     uint32_t i;
     ICELIB_LIST_PAIR *pair;
-    for (i = 0; i < checkList->numberOfPairs; i++) {
+    for (i = 0; pCallbackLog && (i < checkList->numberOfPairs); i++) {
         pair = &checkList->checkListPairs[i];
-        log_debug_pair(pCallbackLog, pair, pair->pairId == pairIdWithMsg ? msg : "");
+        if (pair->pairId == pairIdWithMsg)
+            log_debug_pair(pCallbackLog, pair, pair->pairId == pairIdWithMsg ? msg : "");
     }
-    ICELIB_logString(pCallbackLog, ICELIB_logDebug, "\n");
+}
+static bool isPassiveTransport(ICE_TRANSPORT transport)
+{
+    switch (transport) {
+    case ICE_TRANS_TCPPASS:
+        return true;
 
+    case ICE_TRANS_UDP:
+    case ICE_TRANS_TCPACT:
+        break;
+    }
+
+    return false;
+}
+
+static void prunePairsTcpPassive(ICELIB_CHECKLIST *list)
+{
+    unsigned i;
+
+    for (i = 0; i < list->numberOfPairs; ++i) {
+        if (isPassiveTransport(list->checkListPairs[i].pLocalCandidate->transport))
+            ICELIB_prunePairsClear(&list->checkListPairs[i]);
+    }
 }
 
 //
@@ -123,7 +170,6 @@ char *ICELIB_strncat(char *dst, const char *src, int maxlength)
     return dst;
 }
 
-
 uint64_t ICELIB_random64(void)
 {
     uint64_t p2 = ((uint64_t)rand() << 62) & 0xc000000000000000LL;
@@ -134,27 +180,9 @@ uint64_t ICELIB_random64(void)
 }
 
 
-ICELIB_uint128_t ICELIB_random128(void)
+void ICELIB_generateTransactionId(StunMsgId *transactionId)
 {
-    ICELIB_uint128_t  result;
-
-    result.ms64 = ICELIB_random64();
-    result.ls64 = ICELIB_random64();
-
-    return result;
-}
-
-
-StunMsgId ICELIB_generateTransactionId(void)
-{
-    StunMsgId           tId;
-    ui128byteArray_t    ui128byteArray;
-
-    ui128byteArray.ui128 = ICELIB_random128();
-
-    memcpy(&tId.octet[ 0], &ui128byteArray.ba[ 0], STUN_MSG_ID_SIZE);
-
-    return tId;
+    stunlib_createId(transactionId, rand(), rand());
 }
 
 int ICELIB_compareTransactionId(const StunMsgId *pid1,
@@ -162,8 +190,6 @@ int ICELIB_compareTransactionId(const StunMsgId *pid1,
 {
     return memcmp(pid1, pid2,  STUN_MSG_ID_SIZE);
 }
-
-
 
 uint64_t ICELIB_makeTieBreaker(void)
 {
@@ -193,13 +219,17 @@ char *ICELIB_makeUsernamePair(char       *dst,
 }
 
 const ICE_CANDIDATE *pICELIB_findCandidate(const ICE_MEDIA_STREAM *pMediaStream,
-                                           const struct sockaddr         *address)
+                                           int                     proto,
+                                           const struct sockaddr  *address,
+                                           unsigned                componentId)
 {
     uint32_t i;
 
     for (i=0; i < pMediaStream->numberOfCandidates; ++i) {
         if (sockaddr_alike((struct sockaddr *)&pMediaStream->candidate[ i].connectionAddr,
-                           (struct sockaddr *)address)) {
+                           (struct sockaddr *)address)
+            && ICE_TRANSPORT_proto(pMediaStream->candidate[i].transport) == proto
+            && pMediaStream->candidate[i].componentid == componentId) {
             return &pMediaStream->candidate[ i];
         }
     }
@@ -266,12 +296,14 @@ static void ICELIB_changePairState(ICELIB_LIST_PAIR    *pPair,
                                    ICELIB_PAIR_STATE    newState,
                                    ICELIB_CALLBACK_LOG *pCallbackLog)
 {
-    ICELIB_logVaString(pCallbackLog,
-                       ICELIB_logDebug,
-                       "Pair 0x%p (id %i) changing state old=%s new=%s\n",
-                       pPair, pPair->pairId,
-                       ICELIB_toString_CheckListPairState(pPair->pairState),
-                       ICELIB_toString_CheckListPairState(newState));
+    if (pCallbackLog) {
+        ICELIB_logVaString(pCallbackLog,
+                           ICELIB_logDebug,
+                           "Pair 0x%p (id %i) changing state old=%s new=%s\n",
+                           pPair, pPair->pairId,
+                           ICELIB_toString_CheckListPairState(pPair->pairState),
+                           ICELIB_toString_CheckListPairState(newState));
+    }
     pPair->pairState = newState;
 }
 
@@ -300,16 +332,7 @@ void ICELIB_logString(const ICELIB_CALLBACK_LOG *pCallbackLog,
                       ICELIB_logLevel            logLevel,
                       const char                *str)
 {
-#if 0
-  ICELIB_logLevel logLevelConfig = ICELIB_logDebug;
-
-    if (pCallbackLog != NULL) {
-        if (pCallbackLog->pInstance != NULL) {
-            logLevelConfig = pCallbackLog->pInstance->iceConfiguration.logLevel;
-        }
-    }
-#endif
-    if (true) {//logLevel >= logLevelConfig) {
+    if (pCallbackLog && (logLevel >= pCallbackLog->pInstance->iceConfiguration.logLevel)) {
         ICELIB_logStringBasic(pCallbackLog, logLevel, str);
     }
 }
@@ -388,11 +411,10 @@ bool ICELIB_veryfyICESupportOnStream(const ICELIB_INSTANCE *pInstance,
     }
 
     ICELIB_log(&pInstance->callbacks.callbackLog,
-               ICELIB_logDebug, "Verify ICE support returned false\n");
+            ICELIB_logInfo, "Verify ICE support returned false\n");
 
     return false;
 }
-
 
 bool ICELIB_verifyICESupport(const ICELIB_INSTANCE *pInstance,
                              const ICE_MEDIA *iceRemoteMedia)
@@ -403,11 +425,11 @@ bool ICELIB_verifyICESupport(const ICELIB_INSTANCE *pInstance,
     //Need to see if someone mangled the default address.
 
     for (i=0; i<iceRemoteMedia->numberOfICEMediaLines; i++) {
-        if ( iceRemoteMedia->mediaStream[i].numberOfCandidates == 0) {
+        if (iceRemoteMedia->mediaStream[i].numberOfCandidates == 0) {
             ICELIB_logVaString(&pInstance->callbacks.callbackLog,
-                         ICELIB_logDebug,
-                         "Verify ICE Support detected disbled medialine, ignoring. Medialine: %i/%i\n",
-                         i, iceRemoteMedia->numberOfICEMediaLines);
+                               ICELIB_logInfo,
+                               "Verify ICE Support detected disbled medialine, ignoring. Medialine: %i/%i",
+                               i, iceRemoteMedia->numberOfICEMediaLines);
 
             continue;
         }
@@ -416,14 +438,13 @@ bool ICELIB_verifyICESupport(const ICELIB_INSTANCE *pInstance,
 
         if (!ICELIB_veryfyICESupportOnStream(pInstance, mediaStream)) {
             ICELIB_logVaString(&pInstance->callbacks.callbackLog,
-                         ICELIB_logDebug,
-                         "Verify ICE Support failed. Medialine: %i/%i\n",
-                         i, iceRemoteMedia->numberOfICEMediaLines);
+                               ICELIB_logInfo,
+                               "Verify ICE Support failed. Medialine: %i/%i",
+                               i, iceRemoteMedia->numberOfICEMediaLines);
             return false;
         }
-        else {
+        else
             supported = true;
-        }
     }
 
     return supported;
@@ -485,7 +506,11 @@ void ICELIB_createPasswd(char *dst, int maxlength)
 }
 
 
-uint32_t ICELIB_calculatePriority(ICE_CANDIDATE_TYPE type, uint16_t compid, uint16_t local_pref)
+uint32_t ICELIB_calculatePriority(
+    ICE_CANDIDATE_TYPE type,
+    ICE_TRANSPORT transport,
+    uint16_t compid,
+    uint16_t local_pref)
 {
     uint32_t typepref = 0;
     uint32_t typeprefs[] = { 0,
@@ -495,9 +520,56 @@ uint32_t ICELIB_calculatePriority(ICE_CANDIDATE_TYPE type, uint16_t compid, uint
                              ICELIB_PEERREF_TYPEREF
                            };
 
-    typepref = (0xff000000 & (typeprefs[type] << 24));
+    assert(type < sizeof typeprefs / sizeof *typeprefs);
+    typepref = typeprefs[type];
 
-    return (typepref | local_pref<<8 | ((256 - compid) & 0xff));
+    switch (transport) {
+    case ICE_TRANS_TCPACT:
+    case ICE_TRANS_TCPPASS:
+        typepref -= min(typepref, ICELIB_LOCAL_TYPEPREF - ICELIB_REFLEX_TYPEREF + 1);
+        break;
+
+    case ICE_TRANS_UDP:
+        break;
+    }
+
+    return typepref << 24 | local_pref << 8 | ((256 - compid) & 0xff);
+}
+
+
+static int compute_type_foundation(ICE_CANDIDATE_TYPE type)
+{
+    switch (type) {
+    case ICE_CAND_TYPE_HOST:  return 1;
+    case ICE_CAND_TYPE_PRFLX: return 2;
+    case ICE_CAND_TYPE_SRFLX: return 3;
+    case ICE_CAND_TYPE_RELAY: return 4;
+    case ICE_CAND_TYPE_NONE: break;
+    }
+
+    return 0;
+}
+
+
+static int compute_transport_foundation(ICE_TRANSPORT transport)
+{
+    switch (transport) {
+    case ICE_TRANS_UDP: break;
+    case ICE_TRANS_TCPACT: return 1;
+    case ICE_TRANS_TCPPASS: return 2;
+    }
+
+    return 0;
+}
+
+
+static int compute_foundation(ICE_CANDIDATE_TYPE type, ICE_TRANSPORT transport)
+{
+    int f = compute_type_foundation(type);
+    if (f)
+        f += compute_transport_foundation(transport) * 4;
+
+    return f;
 }
 
 
@@ -506,31 +578,17 @@ uint32_t ICELIB_calculatePriority(ICE_CANDIDATE_TYPE type, uint16_t compid, uint
 //      The length of the string, "maxlength", includes the terminating
 //      null character (i.e. maxlength=5 yields 4 characters and a '\0').
 //
-void ICELIB_createFoundation(char *dst, ICE_CANDIDATE_TYPE type, int maxlength)
+void ICELIB_createFoundation(
+    char *dst,
+    ICE_CANDIDATE_TYPE type,
+    ICE_TRANSPORT transport,
+    size_t maxlength)
 {
-    char const * foundation;
-
-    if (maxlength-- == 0) return;
-
-    switch(type) {
-        case ICE_CAND_TYPE_HOST:
-            foundation = "1";
-            break;
-        case ICE_CAND_TYPE_SRFLX:
-            foundation = "3";
-            break;
-        case ICE_CAND_TYPE_RELAY:
-            foundation = "4";
-            break;
-        case ICE_CAND_TYPE_PRFLX:
-            foundation = "2";
-            break;
-        default:
-            foundation = "unknowntype";
-    }
-
-    strncpy(dst, foundation, maxlength);
-    dst[ maxlength] = '\0';
+    int f = compute_foundation(type, transport);
+    if (f)
+        snprintf(dst, maxlength, "%d", f);
+    else
+        snprintf(dst, maxlength, "unknowntype");
 }
 
 
@@ -574,7 +632,9 @@ void ICELIB_clearRedundantCandidates(ICE_CANDIDATE candidates[])
             for (j=i+1; j < ICE_MAX_CANDIDATES; ++j) {
 
                 if (sockaddr_alike((struct sockaddr *)&candidates[ i].connectionAddr,
-                                   (struct sockaddr *)&candidates[ j].connectionAddr)) {
+                                   (struct sockaddr *)&candidates[ j].connectionAddr)
+                    && candidates[i].transport == candidates[j].transport
+                    && candidates[i].componentid == candidates[j].componentid) {
                     // Found redundant, eliminate
                     ICELIB_resetCandidate(&candidates[ j]);
                 }
@@ -719,7 +779,6 @@ void ICELIB_saveUfragPasswd(ICELIB_CHECKLIST *pCheckList,
 
 }
 
-
 //
 //----- Form candidate pairs
 //
@@ -751,7 +810,9 @@ void ICELIB_formPairs(ICELIB_CHECKLIST       *pCheckList,
 
             if (iPairs >= maxPairs) break;
 
-            if (pLocalCand->componentid == pRemoteCand->componentid) {
+            if (pLocalCand->componentid == pRemoteCand->componentid
+                && remoteLocalTransportMatch(pLocalCand->transport,
+                                             pRemoteCand->transport)) {
                 if (pLocalCand->connectionAddr.ss_family ==
                     pRemoteCand->connectionAddr.ss_family) {
 
@@ -902,7 +963,7 @@ bool ICELIB_addComponentIdIfUnique(ICELIB_COMPONENTLIST *pComponentList,
     bool listFull;
 
     listFull = false;
-    if (! ICELIB_isComponentIdPresent(pComponentList, componentId)) {
+    if (!ICELIB_isComponentIdPresent(pComponentList, componentId)) {
         listFull = ICELIB_addComponentId(pComponentList, componentId);
     }
     return listFull;
@@ -1009,7 +1070,7 @@ void ICELIB_prunePairsCompact(ICELIB_CHECKLIST * pCheckList)
         if (ICELIB_prunePairsIsClear(&pCheckList->checkListPairs[ i])) {
 
             for (j = i + 1; j < pCheckList->numberOfPairs; ++j) {
-                if (! ICELIB_prunePairsIsClear(&pCheckList->checkListPairs[ j])) {
+                if (!ICELIB_prunePairsIsClear(&pCheckList->checkListPairs[ j])) {
                     pCheckList->checkListPairs[ i] = pCheckList->checkListPairs[ j];
                     ICELIB_prunePairsClear(&pCheckList->checkListPairs[ j]);
                     break;
@@ -1052,6 +1113,7 @@ void ICELIB_prunePairs(ICELIB_CHECKLIST    *pCheckList,
     ICELIB_prunePairsReplaceWithBase(pCheckList,
                                       pBbaseServerReflexiveRtp,
                                       pBaseServerReflexiveRtcp);
+    prunePairsTcpPassive(pCheckList);
     ICELIB_prunePairsClearDuplicates(pCheckList);
     ICELIB_prunePairsCompact(pCheckList);
 
@@ -1132,7 +1194,7 @@ bool ICELIB_makeCheckList(ICELIB_CHECKLIST       *pCheckList,
     bool                componentListFull;
 
 
-    if (pCheckList->ufragLocal != NULL ) {
+    if (pCheckList->ufragLocal != NULL && pLocalMediaStream->ufrag[0] != '\0') {
         if (!strncmp(pCheckList->ufragLocal, pLocalMediaStream->ufrag, ICE_MAX_UFRAG_LENGTH)) {
             ICELIB_log(pCallbackLog,
                        ICELIB_logDebug, "Ufrag already present in checklist Ignoring (No restart detected)\n");
@@ -1152,7 +1214,7 @@ bool ICELIB_makeCheckList(ICELIB_CHECKLIST       *pCheckList,
                      pRemoteMediaStream,
                      maxPairs);
 
-    if (pLocalMediaStream->numberOfCandidates == 0 ) {
+    if (pLocalMediaStream->numberOfCandidates == 0) {
         ICELIB_log(pCallbackLog,
                    ICELIB_logDebug, "No Candidates. Disabled local medialine. Checklist state set to Complete\n");
 
@@ -1160,7 +1222,7 @@ bool ICELIB_makeCheckList(ICELIB_CHECKLIST       *pCheckList,
         return false;
     }
 
-    if (pRemoteMediaStream->numberOfCandidates == 0 ) {
+    if (pRemoteMediaStream->numberOfCandidates == 0) {
         ICELIB_log(pCallbackLog,
                    ICELIB_logDebug, "No Candidates. Disabled remote medialine. Checklist state set to Complete\n");
 
@@ -1180,11 +1242,11 @@ bool ICELIB_makeCheckList(ICELIB_CHECKLIST       *pCheckList,
         return false;
     }
 
+    componentListFull = ICELIB_collectEffectiveCompontIds(pCheckList);
+
     ICELIB_prunePairs(pCheckList,
                       pBaseServerReflexiveRtp,
                       pBaseServerReflexiveRtcp);
-
-    componentListFull = ICELIB_collectEffectiveCompontIds(pCheckList);
 
     if (componentListFull) {
         ICELIB_log(pCallbackLog, ICELIB_logError, "Component list is full!");
@@ -1267,6 +1329,21 @@ ICELIB_LIST_PAIR *pICELIB_findPairByState(ICELIB_CHECKLIST *pCheckList,
     }
 
     return NULL;
+}
+
+bool ICELIB_isPairAddressMatchInChecklist(ICELIB_CHECKLIST *pCheckList,
+                                          ICELIB_LIST_PAIR *pair)
+{
+    unsigned int i;
+
+    for (i=0; i < pCheckList->numberOfPairs; ++i) {
+        if (ICELIB_isPairAddressMatch(&pCheckList->checkListPairs[ i], pair)) {
+
+            return true;
+        }
+    }
+
+    return false;
 }
 
 
@@ -1497,12 +1574,11 @@ void ICELIB_scheduleCheck(ICELIB_INSTANCE   *pInstance,
     BindingRequest  = pInstance->callbacks.callbackRequest.pICELIB_sendBindingRequest;
     componentid     = pPair->pLocalCandidate->componentid;
 
-    transactionId = ICELIB_generateTransactionId();
+    ICELIB_generateTransactionId(&transactionId);
     if (!ICELIB_insertTransactionId(pPair,  transactionId)) {
         ICELIB_log(&pInstance->callbacks.callbackLog,
                    ICELIB_logWarning,
                    "To many transaction ID per pair");
-
     }
 
     if (BindingRequest != NULL) {
@@ -1523,6 +1599,7 @@ void ICELIB_scheduleCheck(ICELIB_INSTANCE   *pInstance,
 
         }
         BindingRequest(pInstance->callbacks.callbackRequest.pBindingRequestUserData,
+                       ICE_TRANSPORT_proto(pPair->pLocalCandidate->transport),
                        (struct sockaddr *)&pPair->pRemoteCandidate->connectionAddr,
                        (struct sockaddr *)&pPair->pLocalCandidate->connectionAddr,
                        pPair->pLocalCandidate->userValue1,
@@ -1536,12 +1613,14 @@ void ICELIB_scheduleCheck(ICELIB_INSTANCE   *pInstance,
                                                              true),
                        ICELIB_getCheckListRemotePasswd(pCheckList),
                        ICELIB_calculatePriority(ICE_CAND_TYPE_PRFLX,
-                                                componentid, 0xffff),
+                                                pPair->pLocalCandidate->transport,
+                                                componentid,
+                                                0xffff),
                        pPair->useCandidate,
                        pInstance->iceControlling,
                        pInstance->iceControlled,
                        pInstance->tieBreaker,
-                       /*pPair->transactionId*/transactionId);
+                       transactionId);
 
         debug_log(&pInstance->callbacks.callbackLog, pCheckList, pPair->pairId, " --> sending binding request");
     }
@@ -1574,7 +1653,7 @@ bool ICELIB_scheduleSingle(ICELIB_INSTANCE          *pInstance,
             if (pPair->pairState == ICELIB_PAIR_SUCCEEDED) {
                 if (!pPair->useCandidate) {
                     ICELIB_log(&pInstance->callbacks.callbackLog,
-                               ICELIB_logWarning,
+                               ICELIB_logDebug,
                                "Scheduling SUCCEEDED check without USE_CANDIDATE flag set");
 
                 }
@@ -1691,7 +1770,8 @@ void ICELIB_recomputeAllPairPriorities(ICELIB_STREAM_CONTROLLER streamController
 //
 unsigned int ICELIB_findStreamByAddress(ICELIB_STREAM_CONTROLLER streamControllers[],
                                         unsigned int             numberOfMediaStreams,
-                                        const struct sockaddr           *pHostAddr)
+                                        int                      proto,
+                                        const struct sockaddr    *pHostAddr)
 {
     unsigned int       i;
     unsigned int       j;
@@ -1703,9 +1783,10 @@ unsigned int ICELIB_findStreamByAddress(ICELIB_STREAM_CONTROLLER streamControlle
         for (j=0; j < pCheckList->numberOfPairs; ++j) {
             if (pCheckList->checkListPairs[j].pLocalCandidate->type == ICE_CAND_TYPE_HOST)
             {
+                ICE_TRANSPORT transport = pCheckList->checkListPairs[j].pLocalCandidate->transport;
                 pAddr = (struct sockaddr *)&pCheckList->checkListPairs[j].pLocalCandidate->connectionAddr;
-                if (sockaddr_alike(pAddr, pHostAddr))
-                {
+                if (sockaddr_alike(pAddr, pHostAddr)
+                    && ICE_TRANSPORT_proto(transport) == proto) {
                     return i;
                 }
             }
@@ -1744,7 +1825,16 @@ void ICELIB_listSortVL(ICELIB_LIST_VL *pList)
 }
 
 
+void ICELIB_listConstructorVL(ICELIB_LIST_VL *pList)
+{
+    memset(pList, 0, sizeof(*pList));
+}
 
+
+unsigned int ICELIB_listCountVL(const ICELIB_LIST_VL *pList)
+{
+    return(pList->numberOfElements);
+}
 
 
 //
@@ -1775,12 +1865,36 @@ bool ICELIB_listAddBackVL(ICELIB_LIST_VL           *pList,
 }
 
 
+//
+//----- Insert into list in order of pair priority
+//
+//      Return: true  - list is full
+//              false - element added
+//
+bool ICELIB_listInsertVL(ICELIB_LIST_VL            *pList,
+                           ICELIB_VALIDLIST_ELEMENT  *pPair)
+{
+    if (ICELIB_listAddBackVL(pList, pPair)) return true;
+    ICELIB_listSortVL(pList);
+    return false;
+}
+
 
 //-----------------------------------------------------------------------------
 //
 //===== Local Functions: Valid List
 //
 
+void ICELIB_validListConstructor(ICELIB_VALIDLIST *pValidList)
+{
+    memset(pValidList, 0, sizeof(*pValidList));
+}
+
+
+unsigned int ICELIB_validListCount(const ICELIB_VALIDLIST *pValidList)
+{
+    return(ICELIB_listCountVL(&pValidList->pairs));
+}
 
 
 //
@@ -1864,6 +1978,9 @@ void ICELIB_storeRemoteCandidates(ICELIB_INSTANCE *pInstance) {
                               remoteCandidate[ICELIB_RTP_COMPONENT_INDEX].connectionAddr,
                               (struct sockaddr *)&pRemoteCandidate->connectionAddr);
                 pInstance->streamControllers[i].remoteCandidates.
+                    remoteCandidate[ICELIB_RTP_COMPONENT_INDEX].transport =
+                        pRemoteCandidate->transport;
+                pInstance->streamControllers[i].remoteCandidates.
                     remoteCandidate[ICELIB_RTP_COMPONENT_INDEX].type = pRemoteCandidate->type;
                 pInstance->streamControllers[i].remoteCandidates.numberOfComponents++;
             }
@@ -1876,6 +1993,9 @@ void ICELIB_storeRemoteCandidates(ICELIB_INSTANCE *pInstance) {
                 sockaddr_copy((struct sockaddr *)&pInstance->streamControllers[i].remoteCandidates.
                              remoteCandidate[ICELIB_RTCP_COMPONENT_INDEX].connectionAddr,
                               (struct sockaddr *)&pRemoteCandidate->connectionAddr);
+                pInstance->streamControllers[i].remoteCandidates.
+                    remoteCandidate[ICELIB_RTCP_COMPONENT_INDEX].transport =
+                        pRemoteCandidate->transport;
                 pInstance->streamControllers[i].remoteCandidates.
                     remoteCandidate[ICELIB_RTCP_COMPONENT_INDEX].type = pRemoteCandidate->type;
                 pInstance->streamControllers[i].remoteCandidates.numberOfComponents++;
@@ -1902,10 +2022,12 @@ bool ICELIB_validListNominatePair(ICELIB_VALIDLIST *pValidList,
     ICELIB_LIST_PAIR dummyPair;
 
     ICE_CANDIDATE    dummyCandidate;
+    unsigned const componentId = pPair->pLocalCandidate->componentid;
 
     for (i=0; i < pValidList->pairs.numberOfElements; i++) {
         pPairFromList = &pValidList->pairs.elements[ i];
-        if (ICELIB_isPairAddressMatch(pPairFromList,  pPair)) {
+        if (ICELIB_isPairAddressMatch(pPairFromList,  pPair)
+            && pPairFromList->pLocalCandidate->componentid == componentId) {
             pPairFromList->nominatedPair = true;
             return true;
         }
@@ -1913,6 +2035,7 @@ bool ICELIB_validListNominatePair(ICELIB_VALIDLIST *pValidList,
 
     //Try with mapped addres innstead (Or maybee thats what we always should do?)
 
+    dummyCandidate.transport = pPair->pLocalCandidate->transport;
     sockaddr_copy((struct sockaddr *)&dummyCandidate.connectionAddr,
                   (struct sockaddr *)pMappedAddress);
     dummyPair.pLocalCandidate = &dummyCandidate;
@@ -1921,7 +2044,8 @@ bool ICELIB_validListNominatePair(ICELIB_VALIDLIST *pValidList,
 
     for (i=0; i < pValidList->pairs.numberOfElements; i++) {
         pPairFromList = &pValidList->pairs.elements[ i];
-        if (ICELIB_isPairAddressMatch(pPairFromList,  &dummyPair)) {
+        if (ICELIB_isPairAddressMatch(pPairFromList,  &dummyPair)
+            && pPairFromList->pLocalCandidate->componentid == componentId) {
             pPairFromList->nominatedPair = true;
             return true;
         }
@@ -1968,7 +2092,6 @@ bool ICELIB_validListInsert(ICELIB_VALIDLIST         *pValidList,
 }
 
 
-
 //
 //----- Count the number of nominated pairs in the Valid List
 //
@@ -2005,7 +2128,7 @@ ICELIB_VALIDLIST_ELEMENT *ICELIB_findElementInValidListByid(ICELIB_VALIDLIST *pV
         }
     }
 
-    return NULL;;
+    return NULL;
 }
 
 //
@@ -2192,10 +2315,10 @@ bool ICELIB_checkSourceAndDestinationAddr(const ICELIB_LIST_PAIR *pPair,
                                           const struct sockaddr         *source,
                                           const struct sockaddr         *destination)
 {
-    if (! sockaddr_alike((struct sockaddr *)&pPair->pLocalCandidate->connectionAddr,
+    if (!sockaddr_alike((struct sockaddr *)&pPair->pLocalCandidate->connectionAddr,
                          (struct sockaddr *)destination))
         return false;
-    if (! sockaddr_alike((struct sockaddr *)&pPair->pRemoteCandidate->connectionAddr,
+    if (!sockaddr_alike((struct sockaddr *)&pPair->pRemoteCandidate->connectionAddr,
                          (struct sockaddr *)source))
         return false;
     return true;
@@ -2211,11 +2334,14 @@ bool ICELIB_checkSourceAndDestinationAddr(const ICELIB_LIST_PAIR *pPair,
 bool ICELIB_isPairAddressMatch(const ICELIB_LIST_PAIR *pPair1,
                                const ICELIB_LIST_PAIR *pPair2)
 {
-    if (! sockaddr_alike((struct sockaddr *)&pPair1->pLocalCandidate->connectionAddr,
+    if (!sockaddr_alike((struct sockaddr *)&pPair1->pLocalCandidate->connectionAddr,
                          (struct sockaddr *)&pPair2->pLocalCandidate->connectionAddr)) return false;
 
-    if (! sockaddr_alike((struct sockaddr *)&pPair1->pRemoteCandidate->connectionAddr,
+    if (!sockaddr_alike((struct sockaddr *)&pPair1->pRemoteCandidate->connectionAddr,
                         (struct sockaddr *)&pPair2->pRemoteCandidate->connectionAddr)) return false;
+
+    if (pPair1->pLocalCandidate->transport != pPair2->pLocalCandidate->transport)
+        return false;
 
     return true;
 }
@@ -2249,6 +2375,7 @@ ICE_CANDIDATE *ICELIB_addDiscoveredCandidate(ICE_MEDIA_STREAM    *pMediaStream,
 void ICELIB_makePeerLocalReflexiveCandidate(ICE_CANDIDATE       *pPeerCandidate,
                                             ICELIB_CALLBACK_LOG *pCallbackLog,
                                             const struct sockaddr      *pMappedAddress,
+                                            ICE_TRANSPORT        transport,
                                             uint16_t             componentId)
 {
     ICELIB_resetCandidate(pPeerCandidate);
@@ -2258,9 +2385,11 @@ void ICELIB_makePeerLocalReflexiveCandidate(ICE_CANDIDATE       *pPeerCandidate,
     pPeerCandidate->componentid = componentId;
     ICELIB_createFoundation(pPeerCandidate->foundation,
                              ICE_CAND_TYPE_PRFLX,
+                             transport,
                              ICELIB_FOUNDATION_LENGTH);
-    pPeerCandidate->priority = ICELIB_calculatePriority(ICE_CAND_TYPE_PRFLX,
-                                                        componentId, 0xffff);
+    pPeerCandidate->priority = ICELIB_calculatePriority(
+        ICE_CAND_TYPE_PRFLX, transport, componentId, 0xffff);
+    pPeerCandidate->transport = transport;
 
     ICELIB_log(pCallbackLog, ICELIB_logInfo,
                 "Peer reflexive candidate generated:");
@@ -2273,6 +2402,7 @@ void ICELIB_makePeerLocalReflexiveCandidate(ICE_CANDIDATE       *pPeerCandidate,
 void ICELIB_makePeerRemoteReflexiveCandidate(ICE_CANDIDATE       *pPeerCandidate,
                                              ICELIB_CALLBACK_LOG *pCallbackLog,
                                              const struct sockaddr      *sourceAddr,
+                                             ICE_TRANSPORT        transport,
                                              uint32_t             peerPriority,
                                              uint16_t             componentId)
 {
@@ -2280,8 +2410,7 @@ void ICELIB_makePeerRemoteReflexiveCandidate(ICE_CANDIDATE       *pPeerCandidate
 
     pPeerCandidate->priority = peerPriority;
     pPeerCandidate->type     = ICE_CAND_TYPE_PRFLX;
-
-
+    pPeerCandidate->transport = transport;
     sockaddr_copy((struct sockaddr *)&pPeerCandidate->connectionAddr,
                   (struct sockaddr *)sourceAddr);
     pPeerCandidate->type        = ICE_CAND_TYPE_PRFLX;
@@ -2297,7 +2426,6 @@ void ICELIB_makePeerRemoteReflexiveCandidate(ICE_CANDIDATE       *pPeerCandidate
 
 //
 //----- See if a pair is already in the check list.
-//      Using only local and remote addresses in the check.
 //
 //      Return: NULL             - pair not found in the check list
 //              pointer to pair  - pointer to pair in check list
@@ -2307,10 +2435,12 @@ ICELIB_LIST_PAIR *pICELIB_findPairInCheckList(ICELIB_CHECKLIST       *pCheckList
 {
     unsigned int i;
     ICELIB_LIST_PAIR *pPairFromList;
+    unsigned const componentId = pPair->pLocalCandidate->componentid;
 
     for (i=0; i < pCheckList->numberOfPairs; ++i) {
         pPairFromList = &pCheckList->checkListPairs[i];
-        if (ICELIB_isPairAddressMatch(pPairFromList,  pPair)) {
+        if (ICELIB_isPairAddressMatch(pPairFromList,  pPair)
+            && pPairFromList->pLocalCandidate->componentid == componentId) {
             return pPairFromList;
         }
     }
@@ -2347,6 +2477,7 @@ void ICELIB_updateCheckListState(ICELIB_CHECKLIST         *pCheckList,
                                  unsigned int              numberOfMediaStreams,
                                  ICELIB_CALLBACK_LOG      *pCallbackLog)
 {
+   (void) pValidList;
     //
     // If all of the pairs in the check list are now either in the Failed or
     // Succeeded state:
@@ -2356,9 +2487,10 @@ void ICELIB_updateCheckListState(ICELIB_CHECKLIST         *pCheckList,
         // If there is not a pair in the valid list for each component of the
         // media stream, the state of the check list is set to Failed.
 
-        if (! ICELIB_isPairForEachComponentInValidList(pValidList, &pCheckList->componentList)) {
-            pCheckList->checkListState = ICELIB_CHECKLIST_FAILED;
-        }
+        // hmm, this breaks passive tcp and does not seem to do anything useful
+        // if (!ICELIB_isPairForEachComponentInValidList(pValidList, &pCheckList->componentList)) {
+        //     pCheckList->checkListState = ICELIB_CHECKLIST_FAILED;
+        // }
 
         // For each frozen check list, the agent:
         // *  Groups together all of the pairs with the same foundation,
@@ -2384,6 +2516,7 @@ void ICELIB_processSuccessResponse(ICELIB_INSTANCE         *pInstance,
                                    bool                    iceControlling)
 {
     bool                     listFull;
+    int                      proto;
     uint16_t                 componentId;
     ICELIB_LIST_PAIR         candidatePair;
     ICELIB_LIST_PAIR         *pKnownPair = NULL;
@@ -2398,6 +2531,7 @@ void ICELIB_processSuccessResponse(ICELIB_INSTANCE         *pInstance,
     ICELIB_log(&pInstance->callbacks.callbackLog,
                 ICELIB_logDebug,
                 "Got Binding Response!!! Sucsess Cases!");
+    proto       = ICE_TRANSPORT_proto(pPair->pLocalCandidate->transport);
     componentId = pPair->pLocalCandidate->componentid;
     validPairId = 0;
 
@@ -2472,17 +2606,26 @@ void ICELIB_processSuccessResponse(ICELIB_INSTANCE         *pInstance,
     //      peer reflexive candidate. Like other candidates, it has a type,
     //      base, priority and foundation.
     //
-    pLocalCandidate = pICELIB_findCandidate(pLocalMediaStream, pMappedAddress);
-
+    pLocalCandidate = pICELIB_findCandidate(pLocalMediaStream, proto,
+                                            pMappedAddress, componentId);
     if (pLocalCandidate  == NULL) {
         pLocalCandidate = pICELIB_findCandidate(pDiscoveredLocalCandidates,
-                                                pMappedAddress);
+                                                proto,
+                                                pMappedAddress,
+                                                componentId);
         if (pLocalCandidate == NULL) {
+
+            if (pInstance->iceConfiguration.dropRflx) {
+                ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logDebug,
+                           "Discovered local rflx candidate dropped, due to dropRflx config ");
+                return;
+            }
 
             // Unknown: must be a peer reflexive local address
             ICELIB_makePeerLocalReflexiveCandidate(&peerLocalCandidate,
                                                    &pInstance->callbacks.callbackLog,
                                                    pMappedAddress,
+                                                   pPair->pLocalCandidate->transport,
                                                    componentId);
 
             pLocalCandidate = ICELIB_addDiscoveredCandidate(pDiscoveredLocalCandidates,
@@ -2556,7 +2699,7 @@ void ICELIB_processSuccessResponse(ICELIB_INSTANCE         *pInstance,
         if (pKnownPair->nominatedPair)
           pValidPair->nominatedPair = true;
 
-        ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logInfo,
+        ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logDebug,
                    "Valid pair generated (known): ");
         ICELIB_pairDumpLog(&pInstance->callbacks.callbackLog,
                            ICELIB_logDebug,
@@ -2709,12 +2852,12 @@ void ICELIB_incomingBindingResponse(ICELIB_INSTANCE  *pInstance,
     if (pPair == NULL) {
         if (pInstance->iceState != ICELIB_COMPLETED) {
 
-            ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logWarning,
+            ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logDebug,
                        "Can't correlate incoming Binding Response!");
 
-            ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logWarning,"Transaction ID was: ");
-            ICELIB_transactionIdDumpLog(&pInstance->callbacks.callbackLog, ICELIB_logWarning, transactionId);
-            ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logWarning, "\n");
+            ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logDebug,"Transaction ID was: ");
+            ICELIB_transactionIdDumpLog(&pInstance->callbacks.callbackLog, ICELIB_logDebug, transactionId);
+            ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logDebug, "\n");
         }
         return;
     }
@@ -2724,7 +2867,7 @@ void ICELIB_incomingBindingResponse(ICELIB_INSTANCE  *pInstance,
     if (!pPair->useCandidate) {
         if ((pPair->pairState != ICELIB_PAIR_INPROGRESS) &&
             (pPair->pairState != ICELIB_PAIR_WAITING)) {
-            ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logWarning,
+            ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logDebug,
                         "Binding Response to not-in-progress pair!");
             return;
         }
@@ -2795,28 +2938,28 @@ void ICELIB_incomingBindingResponse(ICELIB_INSTANCE  *pInstance,
     //      If they are not symmetric, the agent sets the state of the pair to
     //      Failed.
     //
-    if (! ICELIB_checkSourceAndDestinationAddr(pPair, (struct sockaddr *)source, (struct sockaddr *)destination))
+    if (!ICELIB_checkSourceAndDestinationAddr(pPair, (struct sockaddr *)source, (struct sockaddr *)destination))
         {
 
-        ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logWarning,
+        ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logDebug,
                     "Source and destination addresses don't match, trandactionID:");
-        ICELIB_transactionIdDumpLog(&pInstance->callbacks.callbackLog, ICELIB_logWarning, transactionId);
+        ICELIB_transactionIdDumpLog(&pInstance->callbacks.callbackLog, ICELIB_logDebug, transactionId);
 
-        ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logWarning, "Pair local           != ");
+        ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logDebug, "Pair local           != ");
         ICELIB_netAddrDumpLog(&pInstance->callbacks.callbackLog,
-                              ICELIB_logWarning,
+                               ICELIB_logDebug,
                               (struct sockaddr *)&pPair->pLocalCandidate->connectionAddr);
-        ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logWarning, "Incoming destination: ");
-        ICELIB_netAddrDumpLog(&pInstance->callbacks.callbackLog, ICELIB_logWarning, destination);
+        ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logDebug, "Incoming destination: ");
+        ICELIB_netAddrDumpLog(&pInstance->callbacks.callbackLog, ICELIB_logDebug, destination);
 
-        ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logWarning, "\n");
+        ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logDebug, "\n");
 
-        ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logWarning, " OR Pair remote          !=");
+        ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logDebug, " OR Pair remote          !=");
         ICELIB_netAddrDumpLog(&pInstance->callbacks.callbackLog,
-                              ICELIB_logWarning,
+                              ICELIB_logDebug,
                               (struct sockaddr *)&pPair->pRemoteCandidate->connectionAddr);
-        ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logWarning, "Incoming source     : ");
-        ICELIB_netAddrDumpLog(&pInstance->callbacks.callbackLog, ICELIB_logWarning, source);
+        ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logDebug, "Incoming source     : ");
+        ICELIB_netAddrDumpLog(&pInstance->callbacks.callbackLog, ICELIB_logDebug, source);
 
         ICELIB_changePairState(pPair, ICELIB_PAIR_FAILED, &pInstance->callbacks.callbackLog);
 
@@ -2887,12 +3030,12 @@ void ICELIB_incomingTimeout(ICELIB_INSTANCE  *pInstance,
 
     if (pPair == NULL) {
 
-        ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logWarning,
+        ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logDebug,
                     "Timeout: Can't correlate incoming Binding Response!");
 
-        ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logWarning, "Transaction ID was: ");
-        ICELIB_transactionIdDumpLog(&pInstance->callbacks.callbackLog, ICELIB_logWarning, transactionId);
-        ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logWarning, "\n");
+        ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logDebug, "Transaction ID was: ");
+        ICELIB_transactionIdDumpLog(&pInstance->callbacks.callbackLog, ICELIB_logDebug, transactionId);
+        ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logDebug, "\n");
 
         return;
     }
@@ -2934,6 +3077,7 @@ void ICELIB_incomingTimeout(ICELIB_INSTANCE  *pInstance,
 //
 
 void ICELIB_sendBindingResponse(ICELIB_INSTANCE   *pInstance,
+                                int proto,
                                 const struct sockaddr    *source,
                                 const struct sockaddr    *destination,
                                 const struct sockaddr    *MappedAddress,
@@ -2943,7 +3087,6 @@ void ICELIB_sendBindingResponse(ICELIB_INSTANCE   *pInstance,
                                 uint16_t           errorResponse,
                                 StunMsgId          transactionId,
                                 bool               useRelay,
-                                const char        *pUfragPair,
                                 const char        *pPasswd)
 {
     ICELIB_outgoingBindingResponse  BindingResponse;
@@ -2955,13 +3098,13 @@ void ICELIB_sendBindingResponse(ICELIB_INSTANCE   *pInstance,
                         userValue1,
                         userValue2,
                         componentId,
+                        proto,
                         source,
                         destination,
                         MappedAddress,
                         errorResponse,
                         transactionId,
                         useRelay,
-                        pUfragPair,
                         pPasswd);
     }
 }
@@ -2969,6 +3112,7 @@ void ICELIB_sendBindingResponse(ICELIB_INSTANCE   *pInstance,
 
 void ICELIB_processSuccessRequest(ICELIB_INSTANCE         *pInstance,
                                   StunMsgId                transactionId,
+                                  int                      proto,
                                   const struct sockaddr          *source,
                                   const struct sockaddr          *destination,
                                   const struct sockaddr          *relayBaseAddr,
@@ -2992,10 +3136,7 @@ void ICELIB_processSuccessRequest(ICELIB_INSTANCE         *pInstance,
     ICELIB_LIST_PAIR         *pKnownPair;
     ICELIB_VALIDLIST_ELEMENT *pValidElement;
     ICE_CANDIDATE            peerRemoteCandidate;
-    char                     ufragPair[ICE_MAX_UFRAG_PAIR_LENGTH];
-    char * list_user = ICELIB_getCheckListLocalUsernamePair(ufragPair,
-                                                            ICE_MAX_UFRAG_PAIR_LENGTH,
-                                                            pCurrentCheckList);
+
     const char * list_pwd = ICELIB_getCheckListLocalPasswd(pCurrentCheckList);
 
     ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logInfo,
@@ -3006,9 +3147,16 @@ void ICELIB_processSuccessRequest(ICELIB_INSTANCE         *pInstance,
     //
     //      ICE-19: 7.2.1.3. Learning Peer Reflexive Candidates
     //
-    if (pICELIB_findCandidate(pRemoteMediaStream, source) == NULL &&
-        pICELIB_findCandidate(pDiscoveredRemoteCandidates, source) == NULL) {
+    if (pICELIB_findCandidate(pRemoteMediaStream, proto, source, componentId) == NULL &&
+        pICELIB_findCandidate(pDiscoveredRemoteCandidates, proto, source, componentId) == NULL) {
+        ICE_TRANSPORT transport = (proto == IPPROTO_TCP) ? ICE_TRANS_TCPACT : ICE_TRANS_UDP;
 
+        if (pInstance->iceConfiguration.dropRflx) {
+            ICELIB_log(&pInstance->callbacks.callbackLog,
+                       ICELIB_logDebug,
+                       "NOT making peer refelxive remote Candidate, since dropRflx is enabled");
+            return;
+        }
         ICELIB_log(&pInstance->callbacks.callbackLog,
                    ICELIB_logDebug,
                    "Making peer refelxive remote Candidate");
@@ -3016,6 +3164,7 @@ void ICELIB_processSuccessRequest(ICELIB_INSTANCE         *pInstance,
         ICELIB_makePeerRemoteReflexiveCandidate(&peerRemoteCandidate,
                                                 &pInstance->callbacks.callbackLog,
                                                 source,
+                                                transport,
                                                 peerPriority,
                                                 componentId);
 
@@ -3038,20 +3187,27 @@ void ICELIB_processSuccessRequest(ICELIB_INSTANCE         *pInstance,
     ICELIB_changePairState(&candidatePair, ICELIB_PAIR_IDLE, &pInstance->callbacks.callbackLog);
     candidatePair.pairId = 0;   // Updated when inserted into valid list
     if (fromRelay) {
-        candidatePair.pLocalCandidate  = pICELIB_findCandidate(pLocalMediaStream, relayBaseAddr);
+        candidatePair.pLocalCandidate  =
+            pICELIB_findCandidate(pLocalMediaStream, proto, relayBaseAddr, componentId);
         if (candidatePair.pLocalCandidate == NULL) {
-            candidatePair.pLocalCandidate = pICELIB_findCandidate(pDiscoveredLocalCandidates, relayBaseAddr);
+            candidatePair.pLocalCandidate =
+                pICELIB_findCandidate(pDiscoveredLocalCandidates,
+                                      proto, relayBaseAddr, componentId);
         }
     }else{
-        candidatePair.pLocalCandidate  = pICELIB_findCandidate(pLocalMediaStream, destination);
+        candidatePair.pLocalCandidate  =
+            pICELIB_findCandidate(pLocalMediaStream, proto, destination, componentId);
         if (candidatePair.pLocalCandidate == NULL) {
-            candidatePair.pLocalCandidate = pICELIB_findCandidate(pDiscoveredLocalCandidates, destination);
+            candidatePair.pLocalCandidate =
+                pICELIB_findCandidate(pDiscoveredLocalCandidates,
+                                      proto, destination, componentId);
         }
     }
-    candidatePair.pRemoteCandidate = pICELIB_findCandidate(pRemoteMediaStream, source);
-
+    candidatePair.pRemoteCandidate =
+        pICELIB_findCandidate(pRemoteMediaStream, proto, source, componentId);
     if (candidatePair.pRemoteCandidate == NULL) {
-        candidatePair.pRemoteCandidate = pICELIB_findCandidate(pDiscoveredRemoteCandidates, source);
+        candidatePair.pRemoteCandidate =
+            pICELIB_findCandidate(pDiscoveredRemoteCandidates, proto, source, componentId);
     }
 
     if (candidatePair.pLocalCandidate == NULL) {
@@ -3102,7 +3258,7 @@ void ICELIB_processSuccessRequest(ICELIB_INSTANCE         *pInstance,
                                 "Canceling Transaction. Transaction Table Size(%d).", pKnownPair->numberOfTransactionIds);
 
                     CancelReq(pInstance->callbacks.callbackCancelRequest.pCancelRequestUserData,
-                              pInstance->localIceMedia.mediaStream[0].userValue1,
+                              0,//pInstance->localIceMedia.mediaStream[0].userValue1,
                               pKnownPair->transactionIdTable[0]);
                 }
                 if (ICELIB_triggeredFifoPut(pTriggeredFifo, pKnownPair)) {
@@ -3141,17 +3297,14 @@ void ICELIB_processSuccessRequest(ICELIB_INSTANCE         *pInstance,
                 ICELIB_log(&pInstance->callbacks.callbackLog,
                            ICELIB_logDebug,
                            "Setting Nominated");
-
-
                 pValidElement = ICELIB_findElementInValidListByid(pCurrentValidList, pKnownPair->pairId);
                 if (pValidElement != NULL) {
                     pValidElement->nominatedPair = true;
-                    ICELIB_pairDumpLog(&pInstance->callbacks.callbackLog, ICELIB_logDebug, pValidElement);
                     if (pKnownPair->pairState == ICELIB_PAIR_INPROGRESS) {
                         ICELIB_log(&pInstance->callbacks.callbackLog,
                                    ICELIB_logDebug,
                                    "TODO:7.2.1.5 Pair is in-progress, but still accepted!!!!");
-                    }
+                   }
                 }else{
                     pKnownPair->nominatedPair = true;
                     sendBindResponse = false;
@@ -3187,12 +3340,19 @@ void ICELIB_processSuccessRequest(ICELIB_INSTANCE         *pInstance,
                        ICELIB_logError,
                        "Triggered Check queue full");
         }
+
+        if (useCandidate) {
+            sendBindResponse = false;
+            ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logDebug,
+                       "Not ready for nomination");
+        }
     }
 
 beach:
     if (sendBindResponse)
     {
         ICELIB_sendBindingResponse(pInstance,          // pInstance
+                                   proto,
                                    destination,        // source
                                    source,             // destination
                                    source,             // MappedAddress
@@ -3202,7 +3362,6 @@ beach:
                                    200,                // errorResponse
                                    transactionId,
                                    fromRelay,
-                                   list_user,
                                    list_pwd);
     }
     else
@@ -3249,6 +3408,7 @@ void ICELIB_processIncommingLite(ICELIB_INSTANCE  *pInstance,
 
 static unsigned int
 ICELIB_findStreamInLocalMedia(ICELIB_INSTANCE  * instance,
+                              int proto,
                               const struct sockaddr   *destination)
 {
     uint32_t i, j;
@@ -3262,8 +3422,10 @@ ICELIB_findStreamInLocalMedia(ICELIB_INSTANCE  * instance,
             if (pLocalMS->candidate[j].type == ICE_CAND_TYPE_HOST)
             {
                 const struct sockaddr * pAddr= (struct sockaddr *)&pLocalMS->candidate[j].connectionAddr;
-                if (sockaddr_alike(pAddr, destination))
+                if (sockaddr_alike(pAddr, destination)
+                    && ICE_TRANSPORT_proto(pLocalMS->candidate[j].transport) == proto) {
                     return i;
+                }
             }
         }
     }
@@ -3280,6 +3442,7 @@ void ICELIB_processIncommingFull(ICELIB_INSTANCE  *pInstance,
                                  bool              iceControlled,
                                  uint64_t          tieBreaker,
                                  StunMsgId         transactionId,
+                                 int               proto,
                                  const struct sockaddr   *source,
                                  const struct sockaddr   *destination,
                                  bool              fromRelay,
@@ -3295,7 +3458,6 @@ void ICELIB_processIncommingFull(ICELIB_INSTANCE  *pInstance,
     const ICE_MEDIA_STREAM   *pRemoteMediaStream;
     ICE_MEDIA_STREAM         *pDiscoveredRemoteCandidates;
     ICE_MEDIA_STREAM         *pDiscoveredLocalCandidates;
-    char                      localUfragPair[ICE_MAX_UFRAG_PAIR_LENGTH];
 
     //
     //----- Detecting and repairing role Conflicts
@@ -3312,23 +3474,30 @@ void ICELIB_processIncommingFull(ICELIB_INSTANCE  *pInstance,
     //
     streamIndex = ICELIB_findStreamByAddress(pInstance->streamControllers,
                                              pInstance->numberOfMediaStreams,
+                                             proto,
                                              destination);
 
     if (streamIndex == ICELIB_STREAM_NOT_FOUND)
     {
         if (pInstance->iceState != ICELIB_COMPLETED)
         {
-            ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logError,
-                        "Can't find media stream index!");
-            ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logError,
-                              "Destination specified in request: ");
-            ICELIB_netAddrDumpLog(&pInstance->callbacks.callbackLog, ICELIB_logError, destination);
-            ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logError, "\n");
+            // tcp-passive candidate not in checklist?
+            if (proto == IPPROTO_TCP)
+                streamIndex = ICELIB_findStreamInLocalMedia(pInstance, proto, destination);
 
+            if (streamIndex == ICELIB_STREAM_NOT_FOUND) {
+                ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logError,
+                           "Can't find media stream index!");
+                ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logError,
+                                 "Destination specified in request: ");
+                ICELIB_netAddrDumpLog(&pInstance->callbacks.callbackLog,
+                                      ICELIB_logError, destination);
+                ICELIB_logString(&pInstance->callbacks.callbackLog, ICELIB_logError, "\n");
+            }
         }
         else
         {
-            streamIndex = ICELIB_findStreamInLocalMedia(pInstance, destination);
+            streamIndex = ICELIB_findStreamInLocalMedia(pInstance, proto, destination);
             if (streamIndex != ICELIB_STREAM_NOT_FOUND)
             {
               char * list_user;
@@ -3342,16 +3511,16 @@ void ICELIB_processIncommingFull(ICELIB_INSTANCE  *pInstance,
               list_pwd = ICELIB_getCheckListLocalPasswd(pCheckList);
 
               ICELIB_sendBindingResponse(pInstance,          // pInstance
+                                         proto,
                                          destination,        // source
                                          source,             // destination
-                                         source,        // MappedAddress
+                                         source,             // MappedAddress
                                          userValue1,         // userValue1
                                          userValue2,         // userValue2
                                          componentId,
                                          200,                // 200 OK
                                          transactionId,
                                          fromRelay,
-                                         list_user,
                                          list_pwd);
               ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logDebug,
                       "ICELIB_COMPLETED, so just sending the response");
@@ -3367,7 +3536,6 @@ void ICELIB_processIncommingFull(ICELIB_INSTANCE  *pInstance,
         return;
     }
 
-
     pCheckList          = &pInstance->streamControllers[streamIndex].checkList;
     pValidList          = &pInstance->streamControllers[streamIndex].validList;
     pTriggeredFifo      = &pInstance->streamControllers[streamIndex].triggeredChecksFifo;
@@ -3377,14 +3545,13 @@ void ICELIB_processIncommingFull(ICELIB_INSTANCE  *pInstance,
     pDiscoveredRemoteCandidates = &pInstance->streamControllers[streamIndex].discoveredRemoteCandidates;
     pDiscoveredLocalCandidates  = &pInstance->streamControllers[streamIndex].discoveredLocalCandidates;
 
-
-
     if (pInstance->iceControlling) {
         if (iceControlling) {
             ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logWarning,
                         "Both parties are controlling!");
             if (pInstance->tieBreaker >= tieBreaker) {
                 ICELIB_sendBindingResponse(pInstance,
+                                           proto,
                                            destination,
                                            source,
                                            source,
@@ -3394,9 +3561,6 @@ void ICELIB_processIncommingFull(ICELIB_INSTANCE  *pInstance,
                                            487,
                                            transactionId,
                                            fromRelay,
-                                           ICELIB_getCheckListLocalUsernamePair(localUfragPair,
-                                                                                ICE_MAX_UFRAG_PAIR_LENGTH,
-                                                                                pCheckList),
                                            ICELIB_getCheckListLocalPasswd(pCheckList));
                 return;
             }else{
@@ -3425,6 +3589,7 @@ void ICELIB_processIncommingFull(ICELIB_INSTANCE  *pInstance,
                             pInstance->iceControlling);
             } else {
                 ICELIB_sendBindingResponse(pInstance,
+                                           proto,
                                            destination,
                                            source,
                                            source,
@@ -3434,9 +3599,6 @@ void ICELIB_processIncommingFull(ICELIB_INSTANCE  *pInstance,
                                            487,
                                            transactionId,
                                            fromRelay,
-                                           ICELIB_getCheckListLocalUsernamePair(localUfragPair,
-                                                                                ICE_MAX_UFRAG_PAIR_LENGTH,
-                                                                                pCheckList),
                                            ICELIB_getCheckListLocalPasswd(pCheckList));
                 return;
             }
@@ -3445,7 +3607,7 @@ void ICELIB_processIncommingFull(ICELIB_INSTANCE  *pInstance,
     //
     //----- Make sure that the ufrag pair match our ufrag pair (TODO: see 7.2)
     //
-    if (! ICELIB_compareUfragPair(pUfragPair,
+    if (!ICELIB_compareUfragPair(pUfragPair,
                                   pCheckList->ufragLocal,
                                   pCheckList->ufragRemote)) {
         ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logWarning,
@@ -3454,6 +3616,7 @@ void ICELIB_processIncommingFull(ICELIB_INSTANCE  *pInstance,
                     "Received UfragPair was: '%s'",
                     pUfragPair);
         ICELIB_sendBindingResponse(pInstance,
+                                   proto,
                                    destination,
                                    source,
                                    source,
@@ -3463,9 +3626,6 @@ void ICELIB_processIncommingFull(ICELIB_INSTANCE  *pInstance,
                                    431,
                                    transactionId,
                                    fromRelay,
-                                   ICELIB_getCheckListLocalUsernamePair(localUfragPair,
-                                                                        ICE_MAX_UFRAG_PAIR_LENGTH,
-                                                                        pCheckList),
                                    ICELIB_getCheckListLocalPasswd(pCheckList));
 
         return;
@@ -3476,6 +3636,7 @@ void ICELIB_processIncommingFull(ICELIB_INSTANCE  *pInstance,
 
     ICELIB_processSuccessRequest(pInstance,
                                  transactionId,
+                                 proto,
                                  source,
                                  destination,
                                  relayBaseAddr,
@@ -3508,6 +3669,7 @@ void ICELIB_incomingBindingRequest(ICELIB_INSTANCE   *pInstance,
                                     bool               iceControlled,
                                     uint64_t           tieBreaker,
                                     StunMsgId          transactionId,
+                                    int                proto,
                                     const struct sockaddr    *source,
                                     const struct sockaddr    *destination,
                                     bool               fromRelay,
@@ -3526,16 +3688,6 @@ void ICELIB_incomingBindingRequest(ICELIB_INSTANCE   *pInstance,
 
         ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logInfo,
                    "Not yet received the ansver: Should  buffering request!");
-        //ICELIB_sendBindingResponse(pInstance,
-        //                            destination,
-        //                            source,
-        //                            source,
-        //                            userValue1,
-        //                            userValue2,
-        //                            componentId,
-        //                            200,
-        //                            transactionId,
-        //                            fromRelay);
         return;
     }
 
@@ -3564,6 +3716,7 @@ void ICELIB_incomingBindingRequest(ICELIB_INSTANCE   *pInstance,
                                     iceControlled,
                                     tieBreaker,
                                     transactionId,
+                                    proto,
                                     source,
                                     destination,
                                     fromRelay,
@@ -3596,20 +3749,42 @@ bool ICELIB_isNominatingCriteriaMetForAllMediaStreams(ICELIB_INSTANCE *pInstance
 {
     unsigned int i;
     ICELIB_VALIDLIST        *pValidList;
+    ICELIB_CHECKLIST        *pCheckList = NULL;
+    uint32_t pathScore = 0;
 
     for (i=0; i < pInstance->numberOfMediaStreams; ++i) {
+        pValidList   = &pInstance->streamControllers[ i].validList;
+
         if( pInstance->localIceMedia.mediaStream[i].numberOfCandidates == 0 ||
             pInstance->remoteIceMedia.mediaStream[i].numberOfCandidates == 0 ) {
-            //Disabled medialine. Ignore
+             //Disabled medialine. Ignore
             continue;
         }
-
-        pValidList   = &pInstance->streamControllers[ i].validList;
         if (!ICELIB_isNominatingCriteriaMet(pValidList)) {
             return false;
         }
     }
+    //Do additional check that all paths for all media streams are the same;
+    pValidList = &pInstance->streamControllers[0].validList;
+    pathScore  = pValidList->nominatedPathScore;
 
+    for (i=1; i < pInstance->numberOfMediaStreams; i++) {
+        pValidList = &pInstance->streamControllers[i].validList;
+        pCheckList = &pInstance->streamControllers[i].checkList;
+
+        if( pInstance->localIceMedia.mediaStream[i].numberOfCandidates == 0 ||
+            pInstance->remoteIceMedia.mediaStream[i].numberOfCandidates == 0 ) {
+             //Disabled medialine. Ignore
+            continue;
+        }
+
+        if (pathScore != pValidList->nominatedPathScore) {
+            ICELIB_updateValidPairReadyToNominateWeightingMediaStream(pCheckList,
+                                                                      pValidList,
+                                                                      ICELIB_getWeightTimeMultiplier(pInstance));
+            return false;
+        }
+    }
     return true;
 }
 
@@ -3650,7 +3825,7 @@ void ICELIB_stopChecks(ICELIB_INSTANCE  *pInstance,
             if (CancelReq != NULL) {
                 for (j=0; j<pair->numberOfTransactionIds; j++) {
                     CancelReq(pInstance->callbacks.callbackCancelRequest.pCancelRequestUserData,
-                              pInstance->localIceMedia.mediaStream[0].userValue1,
+                              0,//pInstance->localIceMedia.mediaStream[0].userValue1,
                               pair->transactionIdTable[j]);
                 }
             }
@@ -3781,7 +3956,7 @@ void ICELIB_nominateRegularIfComplete(ICELIB_INSTANCE *pInstance)
 
                     pValidPair = pICELIB_pickValidPairForNomination(pInstance, pValidList, pCheckList, componentId);
                     if (pValidPair != NULL) {
-                        ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logInfo,
+                        ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logDebug,
                                    "Enqueueing valid pair...");
 
                         ICELIB_enqueueValidPair(pTriggeredChecksFifo,
@@ -4270,7 +4445,6 @@ bool ICELIB_Start(ICELIB_INSTANCE *pInstance, bool controlling)
 {
     ICELIB_logVaString(&pInstance->callbacks.callbackLog, ICELIB_logDebug,
                        "ICELIB_Start with role=%s", controlling ? "Controlling" : "Controlled");
-
     if (!ICELIB_verifyICESupport(pInstance, &pInstance->remoteIceMedia)) {
         ICELIB_log(&pInstance->callbacks.callbackLog,
                    ICELIB_logDebug, "Remote Media mangling detected");
@@ -4296,7 +4470,7 @@ bool ICELIB_Start(ICELIB_INSTANCE *pInstance, bool controlling)
     ICELIB_logVaString(&pInstance->callbacks.callbackLog,
                        ICELIB_logInfo,
                        "Start ICE check list processing ===== "
-                       "Media streams: %d == Controlling: %d =====\n",
+                       "Media streams: %d == Controlling: %d =====",
                        pInstance->numberOfMediaStreams,
                        pInstance->iceControlling);
 
@@ -4331,7 +4505,7 @@ bool ICELIB_isRestart(ICELIB_INSTANCE *pInstance, unsigned int mediaIdx,
 
     if (mediaIdx>=pInstance->numberOfMediaStreams) {
         ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logWarning,
-            "<ICELIB> Checking invalid medialine\n");
+            "<ICELIB> Checking invalid medialine");
 
         if (mediaIdx < ICE_MAX_MEDIALINES)
             return true;
@@ -4344,7 +4518,7 @@ bool ICELIB_isRestart(ICELIB_INSTANCE *pInstance, unsigned int mediaIdx,
     }
 
     ICELIB_logVaString (&pInstance->callbacks.callbackLog, ICELIB_logDebug,
-        "<ICELIB_isRestart> ['%s' '%s']<-> ['%s' '%s']\n",
+        "<ICELIB_isRestart> ['%s' '%s']<-> ['%s' '%s']",
         ufrag, passwd,
         pInstance->remoteIceMedia.mediaStream[mediaIdx].ufrag,
         pInstance->remoteIceMedia.mediaStream[mediaIdx].passwd);
@@ -4423,7 +4597,6 @@ void ICELIB_Tick(ICELIB_INSTANCE *pInstance)
             ICELIB_updatingStates(pInstance);
         }else if (pInstance->iceState == ICELIB_COMPLETED) {
             ICELIB_doKeepAlive(pInstance);
-
         }
     }
 }
@@ -4542,7 +4715,7 @@ ICE_REMOTE_CANDIDATES const *ICELIB_getActiveRemoteCandidates(const ICELIB_INSTA
         return &pInstance->streamControllers[mediaLineId].remoteCandidates;
     }else{
         ICELIB_log(&pInstance->callbacks.callbackLog,
-                   ICELIB_logDebug, "No Remote Candidates available. Checklist not Complete\n");
+                   ICELIB_logDebug, "No Remote Candidates available. Checklist not Complete");
         return NULL;
     }
 
@@ -4558,9 +4731,52 @@ bool ICELIB_isIceComplete(const ICELIB_INSTANCE *pInstance)
     return pInstance && (pInstance->iceState == ICELIB_COMPLETED);
 }
 
-bool ICELIB_isMangled (const ICELIB_INSTANCE *pInstance)
+bool ICELIB_UnsupportedByRemote (const ICELIB_INSTANCE *pInstance)
 {
-    return pInstance && (pInstance->iceState == ICELIB_MANGLED);
+    if (pInstance && (pInstance->iceState == ICELIB_MANGLED)) {
+        for (uint i=0; i<pInstance->remoteIceMedia.numberOfICEMediaLines; i++) {
+            if (pInstance->remoteIceMedia.mediaStream[i].numberOfCandidates > 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    return false;
+}
+
+//Need to see if someone mangled the default address.
+static bool remoteHasBeenMangled(const ICELIB_INSTANCE *pInstance,
+                                 const ICE_MEDIA *iceRemoteMedia)
+{
+    uint32_t i;
+    ICE_MEDIA_STREAM const *mediaStream;
+
+    for (i=0; i<iceRemoteMedia->numberOfICEMediaLines; i++) {
+        if (iceRemoteMedia->mediaStream[i].numberOfCandidates == 0) {
+            continue;
+        }
+
+        mediaStream = &iceRemoteMedia->mediaStream[i];
+
+        if (!ICELIB_veryfyICESupportOnStream(pInstance, mediaStream)) {
+            return true; // is has candidates and medialine default has been altered
+        }
+    }
+
+    return false;
+}
+
+
+bool ICELIB_Mangled (const ICELIB_INSTANCE *pInstance)
+{
+    if (pInstance)
+    {
+        if ((pInstance->iceState == ICELIB_MANGLED) ||
+            remoteHasBeenMangled(pInstance, &pInstance->remoteIceMedia))
+            return true;
+    }
+    return false;
 }
 
 ICE_CANDIDATE const *ICELIB_getActiveCandidate(const ICELIB_INSTANCE *pInstance,
@@ -4571,22 +4787,39 @@ ICE_CANDIDATE const *ICELIB_getActiveCandidate(const ICELIB_INSTANCE *pInstance,
     const ICE_MEDIA_STREAM   *mediaStream;
     uint32_t i;
 
+    assert(pInstance && (mediaLineId < ICE_MAX_MEDIALINES));
+    if (!pInstance || (mediaLineId >= ICE_MAX_MEDIALINES)) {
+        return NULL;
+    }
+
     pValidList = &pInstance->streamControllers[mediaLineId].validList;
 
     for (i=0;i<pValidList->pairs.numberOfElements;i++) {
         const ICE_CANDIDATE    *pLocalCandidate = pValidList->pairs.elements[i].pLocalCandidate;
         if (pValidList->pairs.elements[i].nominatedPair &&
             pLocalCandidate->componentid == componentId) {
-            return pLocalCandidate;
+
+            if (pInstance->iceConfiguration.dropRflx) {
+               if (pLocalCandidate->type == ICE_CAND_TYPE_HOST) {
+                   return pLocalCandidate;
+               } else {
+                   ICE_CANDIDATE const * relCand = ICELIB_getLocalRelayCandidate(pInstance,mediaLineId, componentId);
+                   return relCand ? relCand : pLocalCandidate;
+               }
+            } else {
+                return pLocalCandidate;
+            }
         }
     }
     //We should look up the default candididate for the media stream and use that
-    mediaStream =  &pInstance->localIceMedia.mediaStream[mediaLineId];
-    for (i=0;!ICELIB_isIceComplete (pInstance) && (i < mediaStream->numberOfCandidates); i++) {
-        const ICE_CANDIDATE *defaultCandidate = &mediaStream->candidate[i];
-        if (defaultCandidate->type == mediaStream->defaultCandType &&
-           defaultCandidate->componentid == componentId) {
-            return defaultCandidate;
+    if (pInstance && (pInstance->localIceMedia.numberOfICEMediaLines > (uint) mediaLineId)) {
+        mediaStream =  &pInstance->localIceMedia.mediaStream[mediaLineId];
+        for (i=0;!ICELIB_isIceComplete(pInstance) && (i < mediaStream->numberOfCandidates); i++) {
+            const ICE_CANDIDATE *defaultCandidate = &mediaStream->candidate[i];
+            if (defaultCandidate->type == mediaStream->defaultCandType &&
+                    defaultCandidate->componentid == componentId) {
+                return defaultCandidate;
+            }
         }
     }
 
@@ -4685,6 +4918,7 @@ void ICELIB_candidateDumpLog(const ICELIB_CALLBACK_LOG *pCallbackLog,
     ICELIB_logVaString(pCallbackLog, logLevel, "Addr: ");
     ICELIB_netAddrDumpLog(pCallbackLog, logLevel, (struct sockaddr *)&candidate->connectionAddr);
     ICELIB_logVaString(pCallbackLog, logLevel, " Type: '%s' ", ICELIBTYPES_ICE_CANDIDATE_TYPE_toString(candidate->type));
+    ICELIB_logVaString(pCallbackLog, logLevel, "Trans: %s", ICE_TRANSPORT_toString(candidate->transport));
     ICELIB_logVaString(pCallbackLog, logLevel, " UVal1: %u ", candidate->userValue1);
     ICELIB_logVaString(pCallbackLog, logLevel, " UVal2: %u\n", candidate->userValue2);
 }
@@ -5004,6 +5238,22 @@ ICE_CANDIDATE_TYPE ICELIB_getRemoteCandidateType(const ICELIB_INSTANCE *pInstanc
 
 }
 
+ICE_TRANSPORT ICELIB_getRemoteTransport(
+    const ICELIB_INSTANCE *instance, uint32_t mediaIdx, uint32_t candIdx)
+{
+    assert(instance);
+
+    if (mediaIdx > instance->numberOfMediaStreams) {
+        return ICE_TRANS_UDP;
+    }
+
+    if (candIdx > instance->remoteIceMedia.mediaStream[mediaIdx].numberOfCandidates) {
+        return ICE_TRANS_UDP;
+    }
+
+    return instance->remoteIceMedia.mediaStream[mediaIdx].candidate[candIdx].transport;
+}
+
 
 int ICELIB_candidateSort(const void *x, const void *y) {
     ICE_CANDIDATE *a = (ICE_CANDIDATE*)x;
@@ -5020,6 +5270,7 @@ void ICELIB_fillRemoteCandidate(ICE_CANDIDATE *cand,
                                 uint32_t foundationLen,
                                 uint32_t priority,
                                 struct sockaddr *connectionAddr,
+                                ICE_TRANSPORT transport,
                                 ICE_CANDIDATE_TYPE candType)
 {
     memset(cand->foundation, 0, sizeof(cand->foundation));
@@ -5032,6 +5283,7 @@ void ICELIB_fillRemoteCandidate(ICE_CANDIDATE *cand,
     sockaddr_copy((struct sockaddr *)&cand->connectionAddr,
                   (struct sockaddr *)connectionAddr);
 
+    cand->transport = transport;
     cand->type = candType;
     cand->componentid = componentId;
 
@@ -5045,18 +5297,23 @@ void ICELIB_fillLocalCandidate(ICE_CANDIDATE *cand,
                                uint32_t componentId,
                                const struct sockaddr *connectionAddr,
                                const struct sockaddr *relAddr,
+                               ICE_TRANSPORT transport,
                                ICE_CANDIDATE_TYPE candType,
                                uint16_t local_pref)
 {
-    uint32_t priority = ICELIB_calculatePriority(candType, componentId, local_pref);
+    uint32_t priority = ICELIB_calculatePriority(candType, transport, componentId, local_pref);
 
     sockaddr_copy((struct sockaddr *)&cand->connectionAddr,
                   (struct sockaddr *)connectionAddr);
     cand->type = candType;
     cand->componentid = componentId;
+    cand->transport = transport;
+    if (transport == ICE_TRANS_TCPACT)
+        sockaddr_setPort((struct sockaddr *)&cand->connectionAddr, 9);
 
     ICELIB_createFoundation(cand->foundation,
                              candType,
+                             transport,
                              ICELIB_FOUNDATION_LENGTH);
 
     cand->priority = priority;
@@ -5073,6 +5330,7 @@ int32_t ICELIB_addLocalCandidate(ICELIB_INSTANCE *pInstance,
                                  uint32_t componentId,
                                  const struct sockaddr *connectionAddr,
                                  const struct sockaddr *relAddr,
+                                 ICE_TRANSPORT transport,
                                  ICE_CANDIDATE_TYPE candType,
                                  uint16_t local_pref)
 {
@@ -5101,6 +5359,7 @@ int32_t ICELIB_addLocalCandidate(ICELIB_INSTANCE *pInstance,
                               componentId,
                               connectionAddr,
                               relAddr,
+                              transport,
                               candType,
                               local_pref);
 
@@ -5129,6 +5388,7 @@ int32_t ICELIB_addRemoteCandidate(ICELIB_INSTANCE *pInstance,
                                   uint32_t priority,
                                   const char *connectionAddr,
                                   uint16_t port,
+                                  ICE_TRANSPORT transport,
                                   ICE_CANDIDATE_TYPE candType)
 {
 
@@ -5153,7 +5413,7 @@ int32_t ICELIB_addRemoteCandidate(ICELIB_INSTANCE *pInstance,
 
 
 
-    if (! sockaddr_initFromString((struct sockaddr *)&addr,
+    if (!sockaddr_initFromString((struct sockaddr *)&addr,
                                  connectionAddr)) {
         ICELIB_log(&pInstance->callbacks.callbackLog,
                     ICELIB_logDebug, "Failed to add candidate. Something wrong with IP address\n");
@@ -5168,6 +5428,7 @@ int32_t ICELIB_addRemoteCandidate(ICELIB_INSTANCE *pInstance,
                                foundationLen,
                                priority,
                                (struct sockaddr *)&addr,
+                               transport,
                                candType);
 
     mediaStream->numberOfCandidates++;
@@ -5242,7 +5503,7 @@ int32_t ICELIB_addLocalMediaStream(ICELIB_INSTANCE *pInstance,
 
     pInstance->localIceMedia.numberOfICEMediaLines++;
 
-    return mediaIdx;;
+    return mediaIdx;
 }
 
 
@@ -5279,10 +5540,8 @@ int32_t ICELIB_setRemoteMediaStream(ICELIB_INSTANCE *pInstance,
                 min(sizeof(mediaStream->passwd)-1, strlen(pwd)));
     }else{
         ICELIB_logVaString(&pInstance->callbacks.callbackLog,
-                    ICELIB_logDebug, "Failed to add remote medialine %u. No UFRAG or PASSWD\n",
-                           pInstance->remoteIceMedia.numberOfICEMediaLines);
-        return -1;
-
+                           ICELIB_logDebug, "%u: No UFRAG or PASSWD\n",
+                           mediaIdx);
     }
 
     if (defaultAddr != NULL) {
@@ -5358,6 +5617,27 @@ struct sockaddr const *ICELIB_getLocalRelayAddr(const ICELIB_INSTANCE *pInstance
     return NULL;
 }
 
+ICE_CANDIDATE const *ICELIB_getLocalRelayCandidate(const ICELIB_INSTANCE *pInstance,
+                                                   uint32_t mediaIdx,
+                                                   uint32_t componentId)
+{
+    uint32_t i;
+    if (mediaIdx <= pInstance->localIceMedia.numberOfICEMediaLines)
+    {
+        for (i=0;i<pInstance->localIceMedia.mediaStream[mediaIdx].numberOfCandidates;i++)
+        {
+            if ((pInstance->localIceMedia.mediaStream[mediaIdx].candidate[i].type == ICE_CAND_TYPE_RELAY) &&
+                (pInstance->localIceMedia.mediaStream[mediaIdx].candidate[i].componentid == componentId))
+            {
+                return &pInstance->localIceMedia.mediaStream[mediaIdx].candidate[i];
+            }
+        }
+    }
+
+    return NULL;
+
+}
+
 const ICE_MEDIA_STREAM *
 ICELIB_getLocalMediaStream(const ICELIB_INSTANCE *pInstance, uint32_t mediaIdx)
 {
@@ -5393,4 +5673,11 @@ struct sockaddr const *ICELIB_getLocalRelayAddrFromHostAddr(const ICELIB_INSTANC
 
     return NULL;
 
+}
+
+void ICELIB_dropRflx(ICELIB_INSTANCE *pInstance)
+{
+    if (pInstance) {
+        pInstance->iceConfiguration.dropRflx = true;
+    }
 }

@@ -1,5 +1,4 @@
 /*
-
 Copyright 2011 Cisco. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification, are
@@ -33,6 +32,7 @@ or implied, of Cisco.
 #include "icelib_defines.h"
 #include "stunlib.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <netinet/in.h>
 
@@ -45,11 +45,11 @@ extern "C" {
 #endif
 
 
-#define ICE_MAX_UFRAG_LENGTH                (256+1) /*zero terminated*/
-#define ICE_MAX_PASSWD_LENGTH               (256+1) /*zero terminated*/
-#define ICE_MAX_CANDIDATES                  12
-#define ICE_MAX_FOUNDATION_LENGTH           (32+1)  /*zero terminated*/
-#define ICE_MAX_MEDIALINES                  6
+#define ICE_MAX_UFRAG_LENGTH                (256+1) //zero terminated
+#define ICE_MAX_PASSWD_LENGTH               (256+1) //zero terminated
+#define ICE_MAX_CANDIDATES                  32
+#define ICE_MAX_FOUNDATION_LENGTH           (32+1)  //zero terminated
+#define ICE_MAX_MEDIALINES                  20
 #define ICE_MAX_COMPONENTS                  2
 
 
@@ -179,6 +179,11 @@ typedef enum {
     ICE_TURN_ACTIVE
 }ICE_TURN_STATE;
 
+typedef enum {
+    ICE_TRANS_UDP,
+    ICE_TRANS_TCPACT,
+    ICE_TRANS_TCPPASS
+} ICE_TRANSPORT;
 
 /*!
  * ICE single candidate
@@ -196,6 +201,7 @@ typedef struct {
     uint32_t                componentid;
     uint32_t                priority;
     struct sockaddr_storage connectionAddr;
+    ICE_TRANSPORT           transport;
     ICE_CANDIDATE_TYPE      type;
     struct sockaddr_storage relAddr;
     uint32_t                userValue1;
@@ -205,6 +211,7 @@ typedef struct {
 typedef struct {
     uint32_t                componentId;
     struct sockaddr_storage connectionAddr;
+    ICE_TRANSPORT           transport;
     ICE_CANDIDATE_TYPE      type;
 } ICE_REMOTE_CANDIDATE;
 
@@ -317,6 +324,8 @@ typedef struct {
                                                   candidates will be stored here */
 } ICELIB_STREAM_CONTROLLER;
 
+void ICELIBTYPES_ICE_CANDIDATE_reset(ICE_CANDIDATE *candidate);
+
 void ICELIBTYPES_ICE_MEDIA_STREAM_reset(ICE_MEDIA_STREAM *iceMediaStream);
 bool ICELIBTYPES_ICE_MEDIA_STREAM_isEmpty(const ICE_MEDIA_STREAM *iceMediaStream);
 
@@ -324,6 +333,9 @@ void ICELIBTYPES_ICE_MEDIA_reset(ICE_MEDIA *iceMedia);
 bool ICELIBTYPES_ICE_MEDIA_isEmpty(const ICE_MEDIA *iceMedia);
 
 char const * ICELIBTYPES_ICE_CANDIDATE_TYPE_toString( const ICE_CANDIDATE_TYPE candidateType);
+char const * ICELIBTYPES_ICE_CANDIDATE_Component_toString (uint32_t componentid);
+
+int ICE_TRANSPORT_proto(ICE_TRANSPORT transport);
 
 #ifdef __cplusplus
 }
