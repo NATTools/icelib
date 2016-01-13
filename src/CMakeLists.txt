@@ -37,7 +37,7 @@ if( OPENSSL_FOUND )
 endif( OPENSSL_FOUND )
 
 
-target_link_libraries ( icelib PRIVATE sockaddrutil
+target_link_libraries ( icelib PRIVATE sockaddrutil stunlib
                         ${ADDITIONAL_LIBS})
 
 if (coveralls)
