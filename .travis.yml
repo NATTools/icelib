@@ -1,0 +1,27 @@
+language: c
+compiler:
+- clang
+- gcc
+env:
+- COVERAGE=true
+- COVERAGE=false;
+matrix:
+  exclude:
+  - compiler: clang
+    env: COVERAGE=true
+  - compiler: gcc
+    env: COVERAGE=false
+addons:
+  apt:
+    sources:
+      - george-edison55-precise-backports
+    packages:
+      - cmake
+      - cmake-data
+before_install:
+  - export PATH=$HOME/.local/bin:$PATH
+  - pip install cpp-coveralls --user `whoami`
+script:
+- ./build.sh all test
+after_success:
+- if [[ $COVERAGE == 'true' ]]; then ./coverage.sh; cd build && make package_source; fi
