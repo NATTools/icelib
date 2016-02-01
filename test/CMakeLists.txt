@@ -11,6 +11,7 @@ function (sa_test name)
 endfunction()
 
 sa_test ( icelib )
+sa_test ( icelibtypes )
 
 
 include ( CTest )
