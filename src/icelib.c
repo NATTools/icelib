@@ -300,7 +300,7 @@ static void ICELIB_changePairState(ICELIB_LIST_PAIR    *pPair,
         ICELIB_logVaString(pCallbackLog,
                            ICELIB_logDebug,
                            "Pair 0x%p (id %i) changing state old=%s new=%s\n",
-                           pPair, pPair->pairId,
+                           (void *)pPair, pPair->pairId,
                            ICELIB_toString_CheckListPairState(pPair->pairState),
                            ICELIB_toString_CheckListPairState(newState));
     }
@@ -3500,14 +3500,9 @@ void ICELIB_processIncommingFull(ICELIB_INSTANCE  *pInstance,
             streamIndex = ICELIB_findStreamInLocalMedia(pInstance, proto, destination);
             if (streamIndex != ICELIB_STREAM_NOT_FOUND)
             {
-              char * list_user;
               const char * list_pwd;
-              char ufragPair[ICE_MAX_UFRAG_PAIR_LENGTH] = {0,};
               pCheckList = &pInstance->streamControllers[streamIndex].checkList;
 
-              list_user = ICELIB_getCheckListLocalUsernamePair(ufragPair,
-                                                               ICE_MAX_UFRAG_PAIR_LENGTH,
-                                                               pCheckList);
               list_pwd = ICELIB_getCheckListLocalPasswd(pCheckList);
 
               ICELIB_sendBindingResponse(pInstance,          // pInstance
