@@ -1,6 +1,9 @@
 [![Build Status](https://travis-ci.org/NATTools/icelib.svg?branch=master)](https://travis-ci.org/NATTools/icelib)
 [![Coverage Status](https://coveralls.io/repos/github/NATTools/icelib/badge.svg?branch=master)](https://coveralls.io/github/NATTools/icelib?branch=master)
-
+<a href="https://scan.coverity.com/projects/nattools-icelib">
+  <img alt="Coverity Scan Build Status"
+       src="https://scan.coverity.com/projects/7793/badge.svg"/>
+</a>
 
 # icelib
 An ICE implementation.
