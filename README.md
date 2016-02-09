@@ -4,6 +4,7 @@
   <img alt="Coverity Scan Build Status"
        src="https://scan.coverity.com/projects/7793/badge.svg"/>
 </a>
+[![GitHub version](https://badge.fury.io/gh/NATTools%2Ficelib.svg)](https://github.com/NATTools/icelib/releases)
 
 # icelib
 An ICE implementation.
@@ -22,7 +23,7 @@ against in build/dist/lib.
 
 ## Development
 
-You need to have [cmake](http://www.cmake.org/ to build.
+You need to have [cmake](http://www.cmake.org/) to build.
 Note that version 3.2 or newer is needed. (Some linux distributions are a bit slow to update, so manuall install may be needed.)
 
 ### Unit Tests
@@ -49,7 +50,11 @@ remember how it was fixed)
 
 ### Coding Standard
 
-Run uncrustify. Configfile is in the repo.
+Using uncrustify to clean up code. There is a uncrustify.cfg file that describes
+the format. Run uncrustify before posting pull requests.
+
+[Semantic versioning](http://semver.org/) is used.
+
 
 ## Contributing
 
@@ -60,7 +65,7 @@ first patch.
 
 BSD 2-clause:
 
-Copyright (c) 2015, Stunlib AUTHORS
+Copyright (c) 2015, ICElib AUTHORS
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
