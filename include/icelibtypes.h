@@ -223,7 +223,7 @@ typedef struct {
   uint32_t         numberOfICEMediaLines;
 } ICE_MEDIA;
 
-//one for the original request and one triggered check
+/* one for the original request and one triggered check */
 #define ICELIB_MAX_NO_OF_TRANSID 2
 
 /*  */

@@ -248,11 +248,11 @@ ICELIB_logString(const ICELIB_CALLBACK_LOG* pCallbackLog,
                  const char*                str);
 
 void
-FORMAT_CHECK(3,
-             4) ICELIB_logVaString(const ICELIB_CALLBACK_LOG * pCallbackLog,
-                                   ICELIB_logLevel logLevel,
-                                   const char* fmt,
-                                   ...);
+  FORMAT_CHECK(3,
+               4) ICELIB_logVaString(const ICELIB_CALLBACK_LOG * pCallbackLog,
+                                     ICELIB_logLevel logLevel,
+                                     const char* fmt,
+                                     ...);
 /* -----------------------------------------------------------------------------
  * */
 /*  */

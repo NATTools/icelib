@@ -1,16 +1,26 @@
 language: c
+
+os:
+- linux
+- osx
+
 compiler:
 - clang
 - gcc
+
 env:
 - COVERAGE=true
 - COVERAGE=false;
+
 matrix:
   exclude:
+  - os: osx
+    compiler: gcc
   - compiler: clang
     env: COVERAGE=true
   - compiler: gcc
     env: COVERAGE=false
+
 addons:
   apt:
     sources:
@@ -18,13 +28,17 @@ addons:
     packages:
       - cmake
       - cmake-data
+
 before_install:
   - export PATH=$HOME/.local/bin:$PATH
   - pip install cpp-coveralls --user `whoami`
+
 script:
 - ./build.sh all test
+
 after_success:
 - if [[ $COVERAGE == 'true' ]]; then ./coverage.sh; cd build && make package_source; fi
+
 notifications:
   slack:
     secure: KDvBQ+lCNDwnXFKWngmNpBu7SqiE+wFUZTFXM0j5xH6CpoJgyc9bruBjS+IQEgwjuW+IHKPcdMpkuh4wDW3W5byCLummgo39gIsQUGQItelAv9PpSiM1oB2NPPZAA9ZYn2QWvP+oSIszscvb36g2im0AlCpbc7YAcH/snr3+iIVIPHBbrrl1ktNHuNHZP5D92vpJhAQCic7SEhQqILH2neehW1WmC8MMExlmmQwzy8rUJ/J75ipy10wYxmqHnNR8GMiiBEJXKt48BxRq//xwu+GAri6atF3OGzGmZgLD2aavSPiREWi01BM1Mt6SDqMpZaKSDt+ju7IH8h52LTEiOiN1MoPA7T3sarTQBtZW9TGCXiEoxfcA6XXOSZi2WQ8WfemMr3kSrC7LR2OLfQQrDHUXozhXS1gJPRaer75tKMaNNBDkH4AG6efs9NMd37G/jKg/RZvUwA5jXlMKmCz9fKBVxBjF33wmcLrskLqJuHz5a6dqh1yDzetGsPj8vJ/eaLKXGnk37RYBCcHgsKcajiuiYpmKc07AwMF+00TJBZr15K175HE4bzhUKu1BwehCNeLEGTxVZ3hgqMBkbSRDSYGjqrjRFOLvHiR1Y9OHlDFsktlQrNg3VfvF4tQlZcCnogy64837il06bAwBp+pPBOJ+oDQKeYhk6UUklue9yq0=

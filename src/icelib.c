@@ -203,7 +203,7 @@ ICELIB_random64(void)
 void
 ICELIB_generateTransactionId(StunMsgId* transactionId)
 {
-  stunlib_createId( transactionId, rand(), rand() );
+  stunlib_createId(transactionId);
 }
 
 int
