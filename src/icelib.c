@@ -53,7 +53,8 @@ typedef union {
   uint8_t          ba[ 16];
 } ui128byteArray_t;
 
-/* ----------------------------------------------------------------------------- */
+/* -----------------------------------------------------------------------------
+ * */
 /*  */
 /* ===== Additional debug */
 /*  */
@@ -70,12 +71,12 @@ log_debug_pair(ICELIB_CALLBACK_LOG* pCallbackLog,
   {
     char local[SOCKADDR_MAX_STRLEN], remote[SOCKADDR_MAX_STRLEN];
     sockaddr_toString( (struct sockaddr*)&pair->pLocalCandidate->connectionAddr,
-                                                                  local,
+                       local,
                        sizeof(local), true );
     sockaddr_toString(
-       (struct sockaddr*)&pair->pRemoteCandidate->connectionAddr, remote,
-                       sizeof(
-        remote),                      true );
+      (struct sockaddr*)&pair->pRemoteCandidate->connectionAddr, remote,
+      sizeof(
+        remote),                      true);
 
     ICELIB_logVaString(pCallbackLog,
                        ICELIB_logInfo,
@@ -202,7 +203,7 @@ ICELIB_random64(void)
 void
 ICELIB_generateTransactionId(StunMsgId* transactionId)
 {
-  stunlib_createId( transactionId, rand(), rand() );
+  stunlib_createId(transactionId);
 }
 
 int
@@ -301,7 +302,8 @@ pICELIB_splitUfragPair(const char* pUfragPair,
 /*  */
 /* ----- Compare a username fragment pair to a set of local and remote
  * fragments. */
-/*      According to the ICE spec the pair must be constructed by a remote and */
+/*      According to the ICE spec the pair must be constructed by a remote and
+ * */
 /*      a local user name fragment separated by a ':'. */
 /*  */
 /*      Return: true    - equal */
@@ -761,9 +763,11 @@ ICELIB_clearRedundantCandidates(ICE_CANDIDATE candidates[])
 
 /*  */
 /* ----- Eliminate empty and non-valid entries. */
-/*      Compact the table so that empty and non-valid entries are moved to the */
+/*      Compact the table so that empty and non-valid entries are moved to the
+ * */
 /*      end of the table. */
-/*      A non-valid entry is a non-empty entry where the connection address is */
+/*      A non-valid entry is a non-empty entry where the connection address is
+ * */
 /*      not valid (it is reset or set to "Any"). */
 /*  */
 void
@@ -1384,7 +1388,8 @@ ICELIB_computeStatesSetState(ICELIB_CHECKLIST*    pCheckList,
 /*      *  For all pairs with the same foundation, it sets the state of */
 /*         the pair with the lowest component ID to Waiting. */
 /*  */
-/*      Assumes the check list is sorted so that pairs with lower component ID */
+/*      Assumes the check list is sorted so that pairs with lower component ID
+ * */
 /*      comes before pairs with higher componnet ID. */
 /*      Also assumes that the initial pairState != ICELIB_PAIR_FROZEN. */
 /*  */
@@ -1700,10 +1705,12 @@ ICELIB_isFrozenCheckList(const ICELIB_CHECKLIST* pCheckList)
 /*      component ID to Waiting. If there is more than one such pair, */
 /*      the one with the highest priority is used. */
 /*  */
-/*      Assumes the check list is sorted so that pairs with lower component ID */
+/*      Assumes the check list is sorted so that pairs with lower component ID
+ * */
 /*      comes before pairs with higher componnet ID. */
 /*  */
-/*      TODO: what is meant by 'groups together all of the pairs with the same */
+/*      TODO: what is meant by 'groups together all of the pairs with the same
+ * */
 /*            foundation' .... */
 /*  */
 void
@@ -1744,7 +1751,8 @@ ICELIB_unfreezePairsByFoundation(ICELIB_CHECKLIST*    pCheckList,
 }
 
 
-/* ----------------------------------------------------------------------------- */
+/* -----------------------------------------------------------------------------
+ * */
 /*  */
 /* ===== Local Functions: FIFO */
 /*  */
@@ -1752,7 +1760,8 @@ ICELIB_unfreezePairsByFoundation(ICELIB_CHECKLIST*    pCheckList,
 
 
 
-/* ----------------------------------------------------------------------------- */
+/* -----------------------------------------------------------------------------
+ * */
 /*  */
 /* ===== Local Functions: Triggered checks queue */
 /*  */
@@ -1786,7 +1795,8 @@ ICELIB_getPairById(ICELIB_CHECKLIST* pCheckList,
 }
 
 
-/* ----------------------------------------------------------------------------- */
+/* -----------------------------------------------------------------------------
+ * */
 /*  */
 /* ===== Local Functions: Stream controller */
 /*  */
@@ -1855,7 +1865,8 @@ pICELIB_findPairToScedule(ICELIB_STREAM_CONTROLLER* pController,
 }
 
 
-/* ----------------------------------------------------------------------------- */
+/* -----------------------------------------------------------------------------
+ * */
 /*  */
 /* ===== Local Functions: All stream controllers */
 /*  */
@@ -1892,9 +1903,18 @@ ICELIB_scheduleCheck(ICELIB_INSTANCE*  pInstance,
   ICELIB_generateTransactionId(&transactionId);
   if ( !ICELIB_insertTransactionId(pPair,  transactionId) )
   {
-    ICELIB_log(&pInstance->callbacks.callbackLog,
-               ICELIB_logWarning,
-               "To many transaction ID per pair");
+    ICELIB_log1(&pInstance->callbacks.callbackLog,
+                ICELIB_logInfo,
+                "ICELIB_scheduleCheck To many transaction ID per pair: id %u",
+                pPair->pairId);
+  }
+  else
+  {
+    ICELIB_log1(&pInstance->callbacks.callbackLog,
+                ICELIB_logInfo,
+                "ICELIB_scheduleCheck transactionIdCnt for this pair is now %u",
+                pPair->numberOfTransactionIds);
+
   }
 
   if (BindingRequest != NULL)
@@ -1951,7 +1971,8 @@ ICELIB_scheduleCheck(ICELIB_INSTANCE*  pInstance,
 
 
 /*  */
-/* ----- Schedule a connectivity check for a pair if check list is active and if */
+/* ----- Schedule a connectivity check for a pair if check list is active and if
+ * */
 /*      any WAITING/FROZEN or triggered pair is available. */
 /*  */
 /*      ICE-19: 5.8 Scheduling checks */
@@ -2150,7 +2171,8 @@ ICELIB_findStreamByAddress(ICELIB_STREAM_CONTROLLER streamControllers[],
 }
 
 
-/* ----------------------------------------------------------------------------- */
+/* -----------------------------------------------------------------------------
+ * */
 /*  */
 /* ===== Local Functions: Basic Lists */
 /*  */
@@ -2254,7 +2276,8 @@ ICELIB_listInsertVL(ICELIB_LIST_VL*           pList,
 }
 
 
-/* ----------------------------------------------------------------------------- */
+/* -----------------------------------------------------------------------------
+ * */
 /*  */
 /* ===== Local Functions: Valid List */
 /*  */
@@ -2432,7 +2455,8 @@ ICELIB_validListNominatePair(ICELIB_VALIDLIST*      pValidList,
     }
   }
 
-  /* Try with mapped addres innstead (Or maybee thats what we always should do?) */
+  /* Try with mapped addres innstead (Or maybee thats what we always should do?)
+   * */
 
   dummyCandidate.transport = pPair->pLocalCandidate->transport;
   sockaddr_copy( (struct sockaddr*)&dummyCandidate.connectionAddr,
@@ -2596,7 +2620,8 @@ ICELIB_isPairForEachComponentInValidList(ICELIB_VALIDLIST*           pValidList,
 /*  */
 /* ----- Unfreeze pairs with foundations matching foundations in Valid List */
 /*  */
-/*      Changes the state of all Frozen pairs in the check list whose foundation */
+/*      Changes the state of all Frozen pairs in the check list whose foundation
+ * */
 /*      matches a pair in the valid list under consideration, to Waiting. */
 /*  */
 void
@@ -2822,7 +2847,8 @@ ICELIB_isPairAddressMatch(const ICELIB_LIST_PAIR* pPair1,
 /* ----- Add a new candidate into a candidate list. */
 /*  */
 /*      Return: NULL                  - no more room, list is full!! */
-/*              pointer to candidate  - pointer to added candidate in the list */
+/*              pointer to candidate  - pointer to added candidate in the list
+ * */
 /*  */
 ICE_CANDIDATE*
 ICELIB_addDiscoveredCandidate(ICE_MEDIA_STREAM*    pMediaStream,
@@ -3027,7 +3053,8 @@ ICELIB_processSuccessResponse(ICELIB_INSTANCE*        pInstance,
   /*      ICE-19: 7.1.2.2.4 Updating the Nominated Flag */
   /*  */
   /*      If the agent was a controlling agent, and it had included a USE- */
-  /*      CANDIDATE attribute in the Binding Request, the valid pair generated */
+  /*      CANDIDATE attribute in the Binding Request, the valid pair generated
+   * */
   /*      from that check has its nominated flag set to true. */
   /*  */
   if (pInstance->iceControlling)
@@ -3096,8 +3123,10 @@ ICELIB_processSuccessResponse(ICELIB_INSTANCE*        pInstance,
   /*      ICE-19: 7.1.2.2.1 Discovering Peer Reflexive Candidates */
   /*  */
   /*      The agent checks the mapped address from the STUN response. If the */
-  /*      transport address does not match any of the local candidates that the */
-  /*      agent knows about, the mapped address represents a new candidate - a */
+  /*      transport address does not match any of the local candidates that the
+   * */
+  /*      agent knows about, the mapped address represents a new candidate - a
+   * */
   /*      peer reflexive candidate. Like other candidates, it has a type, */
   /*      base, priority and foundation. */
   /*  */
@@ -3144,7 +3173,8 @@ ICELIB_processSuccessResponse(ICELIB_INSTANCE*        pInstance,
   /*      ICE-19: 7.1.2.2.2 Constructing a Valid Pair */
   /*  */
   /*      The agent constructs a candidate pair whose local candidate equals */
-  /*      the mapped address of the response, and whose remote candidate equals */
+  /*      the mapped address of the response, and whose remote candidate equals
+   * */
   /*      the destination address to which the request was sent. This is */
   /*      called a valid pair, since it has been validated by a STUN */
   /*      connectivity check. */
@@ -3252,7 +3282,8 @@ ICELIB_processSuccessResponse(ICELIB_INSTANCE*        pInstance,
   /*  */
   /*      The agent sets the state of the pair that generated the check to */
   /*      Succeeded. The success of this check might also cause the state of */
-  /*      other checks to change as well. The agent MUST perform the following */
+  /*      other checks to change as well. The agent MUST perform the following
+   * */
   /*      two steps: */
   /*  */
   ICELIB_changePairState(pPair,
@@ -3272,10 +3303,13 @@ ICELIB_processSuccessResponse(ICELIB_INSTANCE*        pInstance,
                                    &pInstance->callbacks.callbackLog);
   /*  */
   /*      2. If there is a pair in the valid list for every component of this */
-  /*         media stream (where this is the actual number of components being */
-  /*         used, in cases where the number of components signaled in the SDP */
+  /*         media stream (where this is the actual number of components being
+   * */
+  /*         used, in cases where the number of components signaled in the SDP
+   * */
   /*         differs from offerer to answerer), the success of this check may */
-  /*         unfreeze checks for *other* media streams. Note that this step is */
+  /*         unfreeze checks for *other* media streams. Note that this step is
+   * */
   /*         followed not just the first time the valid list under */
   /*         consideration has a pair for every component, but every */
   /*         subsequent time a check succeeds and adds yet another pair to */
@@ -3375,7 +3409,8 @@ ICELIB_incomingBindingResponse(ICELIB_INSTANCE*       pInstance,
   /*  */
   /*      ICE-19: 7.1.2 Processing the Response */
   /*  */
-  /*      When a Binding Response is received, it is correlated to its Binding */
+  /*      When a Binding Response is received, it is correlated to its Binding
+   * */
   /*      Request using the transaction ID, as defined in */
   /*      [I-D.ietf-behave-rfc3489bis], which then ties it to the candidate */
   /*      pair for which the Binding Request was sent. */
@@ -3483,8 +3518,10 @@ ICELIB_incomingBindingResponse(ICELIB_INSTANCE*       pInstance,
   /*      ICE-19: 7.1.2.1 */
   /*  */
   /*      The agent MUST check that the source IP address and port of the */
-  /*      response equals the destination IP address and port that the Binding */
-  /*      Request was sent to, and that the destination IP address and port of */
+  /*      response equals the destination IP address and port that the Binding
+   * */
+  /*      Request was sent to, and that the destination IP address and port of
+   * */
   /*      the response match the source IP address and port that the Binding */
   /*      Request was sent from. In other words, the source and destination */
   /*      transport addresses in the request and responses are the symmetric. */
@@ -3661,7 +3698,8 @@ ICELIB_incomingTimeout(ICELIB_INSTANCE* pInstance,
 }
 
 
-/* ----------------------------------------------------------------------------- */
+/* -----------------------------------------------------------------------------
+ * */
 /*  */
 /* ===== Local Functions: Processing a connectivity check request */
 /*  */
@@ -3867,7 +3905,9 @@ ICELIB_processSuccessRequest(ICELIB_INSTANCE*        pInstance,
                    "7.2.1.4 Found Succeeded pair in checklist");
         goto beach;
       }
-      if (pKnownPair->pairState == ICELIB_PAIR_INPROGRESS)
+      if ( (pKnownPair->pairState == ICELIB_PAIR_INPROGRESS) &&
+           (pKnownPair->numberOfTransactionIds < ICELIB_MAX_NO_OF_TRANSID) )
+
       {
         ICELIB_outgoingCancelRequest CancelReq;
 
@@ -3883,12 +3923,14 @@ ICELIB_processSuccessRequest(ICELIB_INSTANCE*        pInstance,
                       ICELIB_logDebug,
                       "Canceling Transaction. Transaction Table Size(%d).",
                       pKnownPair->numberOfTransactionIds);
-
-          CancelReq(
-            pInstance->callbacks.callbackCancelRequest.pCancelRequestUserData,
-            0,
-            /* pInstance->localIceMedia.mediaStream[0].userValue1, */
-            pKnownPair->transactionIdTable[0]);
+          for (uint i = 0; i < pKnownPair->numberOfTransactionIds; i++)
+          {
+            CancelReq(
+              pInstance->callbacks.callbackCancelRequest.pCancelRequestUserData,
+              0,
+              /* pInstance->localIceMedia.mediaStream[0].userValue1, */
+              pKnownPair->transactionIdTable[i]);
+          }
         }
         if ( ICELIB_triggeredFifoPut(pTriggeredFifo, pKnownPair) )
         {
@@ -3899,6 +3941,12 @@ ICELIB_processSuccessRequest(ICELIB_INSTANCE*        pInstance,
         ICELIB_changePairState(pKnownPair,
                                ICELIB_PAIR_WAITING,
                                &pInstance->callbacks.callbackLog);
+      }
+      else
+      {
+        ICELIB_log(&pInstance->callbacks.callbackLog,
+                   ICELIB_logDebug,
+                   "7.2.1.4 Cancel ignored. pair has already triggered a check");
       }
       if (pKnownPair->pairState == ICELIB_PAIR_FAILED)
       {
@@ -4129,7 +4177,8 @@ ICELIB_processIncommingFull(ICELIB_INSTANCE*       pInstance,
   }
 
   /*  */
-  /* ----- Correlate to media stream using the our own address ("destination") */
+  /* ----- Correlate to media stream using the our own address ("destination")
+   * */
   /*  */
   streamIndex = ICELIB_findStreamByAddress(pInstance->streamControllers,
                                            pInstance->numberOfMediaStreams,
@@ -4761,7 +4810,8 @@ ICELIB_removeWaitingAndFrozenByComponentFromCheckList(
 
 
 /*  */
-/* ----- Remove all Waiting and Frozen pairs in the triggered check queue with */
+/* ----- Remove all Waiting and Frozen pairs in the triggered check queue with
+ * */
 /*      the specified component ID. */
 /*  */
 void
@@ -4827,9 +4877,12 @@ ICELIB_removeWaitingAndFrozen(ICELIB_CHECKLIST*      pCheckList,
 
 
 /*  */
-/* ----- If an In-Progress pair in the check list is for the same component as a */
-/*      nominated pair, the agent SHOULD cease retransmission for its check if */
-/*      its pair priority is lower than the lowest priority nominated pair for */
+/* ----- If an In-Progress pair in the check list is for the same component as a
+ * */
+/*      nominated pair, the agent SHOULD cease retransmission for its check if
+ * */
+/*      its pair priority is lower than the lowest priority nominated pair for
+ * */
 /*      that component. */
 /*  */
 void
@@ -5200,7 +5253,7 @@ ICELIB_updateValidPairReadyToNominateWeighting(ICELIB_INSTANCE* pInstance)
   for (i = 0; i < pInstance->numberOfMediaStreams; i++)
   {
     ICELIB_updateValidPairReadyToNominateWeightingMediaStream(
-       &pInstance->streamControllers[i].checkList,
+      &pInstance->streamControllers[i].checkList,
       &pInstance->streamControllers[
         i].validList,
       ICELIB_getWeightTimeMultiplier(
@@ -5209,7 +5262,8 @@ ICELIB_updateValidPairReadyToNominateWeighting(ICELIB_INSTANCE* pInstance)
 
 }
 
-/* ----------------------------------------------------------------------------- */
+/* -----------------------------------------------------------------------------
+ * */
 /*  */
 /* ===== ICELIB API Functions */
 /*  */
@@ -5739,7 +5793,8 @@ ICELIB_getActiveCandidate(const ICELIB_INSTANCE* pInstance,
       }
     }
   }
-  /* We should look up the default candididate for the media stream and use that */
+  /* We should look up the default candididate for the media stream and use that
+   * */
   if ( pInstance &&
        (pInstance->localIceMedia.numberOfICEMediaLines > (uint) mediaLineId) )
   {
@@ -5866,16 +5921,16 @@ ICELIB_candidateDumpLog(const ICELIB_CALLBACK_LOG* pCallbackLog,
                         const ICE_CANDIDATE*       candidate)
 {
   ICELIB_logVaString(pCallbackLog,
-                                   logLevel,
-                                             "   Fnd: '%s' ",
+                     logLevel,
+                     "   Fnd: '%s' ",
                      candidate->foundation);
   ICELIB_logVaString(pCallbackLog,
-                                   logLevel,
-                                             "Comp: %i ",
+                     logLevel,
+                     "Comp: %i ",
                      candidate->componentid);
   ICELIB_logVaString(pCallbackLog,
-                                   logLevel,
-                                             "Pri: %u ",
+                     logLevel,
+                     "Pri: %u ",
                      candidate->priority);
   ICELIB_logVaString(pCallbackLog, logLevel, "Addr: ");
   ICELIB_netAddrDumpLog(pCallbackLog,
@@ -5904,8 +5959,8 @@ ICELIB_componentIdsDumpLog(const ICELIB_CALLBACK_LOG*  pCallbackLog,
   unsigned int i;
 
   ICELIB_logVaString(pCallbackLog,
-                                   logLevel,
-                                             "Number of components: %d - ",
+                     logLevel,
+                     "Number of components: %d - ",
                      pComponentList->numberOfComponents);
   ICELIB_logVaString(pCallbackLog, logLevel, "[ ");
   for (i = 0; i < pComponentList->numberOfComponents; ++i)
@@ -5944,29 +5999,29 @@ ICELIB_pairDumpLog(const ICELIB_CALLBACK_LOG* pCallbackLog,
                         ICELIB_toString_CheckListPairState(pPair->pairState) );
 
     ICELIB_logVaString(pCallbackLog,
-                                      logLevel,
-                                                "Default=%d, ",
-                        pPair->defaultPair);
+                       logLevel,
+                       "Default=%d, ",
+                       pPair->defaultPair);
     ICELIB_logVaString(pCallbackLog,
-                                      logLevel,
-                                                "Use-Cand=%d, ",
-                        pPair->useCandidate);
+                       logLevel,
+                       "Use-Cand=%d, ",
+                       pPair->useCandidate);
     ICELIB_logVaString(pCallbackLog,
-                                      logLevel,
-                                                "Triggered-Use-Cand=%d, ",
-                        pPair->triggeredUseCandidate);
+                       logLevel,
+                       "Triggered-Use-Cand=%d, ",
+                       pPair->triggeredUseCandidate);
     ICELIB_logVaString(pCallbackLog,
-                                      logLevel,
-                                                "Nominated=%d, ",
-                        pPair->nominatedPair);
+                       logLevel,
+                       "Nominated=%d, ",
+                       pPair->nominatedPair);
     ICELIB_logVaString(pCallbackLog,
-                                      logLevel,
-                                                "Id=%u ",
-                        pPair->pairId);
+                       logLevel,
+                       "Id=%u ",
+                       pPair->pairId);
     ICELIB_logVaString(pCallbackLog,
-                                      logLevel,
-                                                "refersTo=%u\n",
-                        pPair->refersToPairId);
+                       logLevel,
+                       "refersTo=%u\n",
+                       pPair->refersToPairId);
 
     ICELIB_logVaString( pCallbackLog, logLevel, "Pair priority  : 0x%ju\n",
                         (uintmax_t)pPair->pairPriority);
@@ -6046,7 +6101,7 @@ ICELIB_checkListDumpAllLog(const ICELIB_CALLBACK_LOG* pCallbackLog,
   unsigned int i;
 
   ICELIB_logVaString(pCallbackLog,
-                                   logLevel,
+                     logLevel,
                      "\n\n--- Dump all check lists ------------------------------------\n");
   ICELIB_logVaString(pCallbackLog, logLevel,
                      "    Number of paired media streams: %d\n",

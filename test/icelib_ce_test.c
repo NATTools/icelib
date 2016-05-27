@@ -1437,7 +1437,7 @@ CTEST(icelib_ce, conncheck_withIncomming)
 
   ASSERT_FALSE(connChkCB.useRelay);
 
-  stunlib_createId(&stunId, 34, 3);
+  stunlib_createId(&stunId);
   sockaddr_initFromString( (struct sockaddr*)&srcAddr, srcAddrStr );
   sockaddr_initFromString( (struct sockaddr*)&dstAddr, "192.168.2.10:3456" );
   ICELIB_getCheckListRemoteUsernamePair(ufragPair,
@@ -1619,14 +1619,14 @@ CTEST(icelib_ce, compareTransactionId)
   StunMsgId id2;
   StunMsgId id3;
 
-  stunlib_createId(&id1, 34, 3);
+  stunlib_createId(&id1);
 
   memcpy(&id3, &id1, STUN_MSG_ID_SIZE);
 
   ASSERT_TRUE( 0 == ICELIB_compareTransactionId(&id1,
                                                 &id3) );
 
-  stunlib_createId(&id2, 43, 2);
+  stunlib_createId(&id2);
   ASSERT_FALSE( 0 == ICELIB_compareTransactionId(&id1,
                                                  &id2) );
 

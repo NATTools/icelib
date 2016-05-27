@@ -223,7 +223,8 @@ typedef struct {
   uint32_t         numberOfICEMediaLines;
 } ICE_MEDIA;
 
-#define ICELIB_MAX_NO_OF_TRANSID 5
+/* one for the original request and one triggered check */
+#define ICELIB_MAX_NO_OF_TRANSID 2
 
 /*  */
 /* ----- ICE check list and valid list pair */
@@ -242,7 +243,6 @@ typedef struct {
   const ICE_CANDIDATE* pRemoteCandidate;
   StunMsgId            transactionIdTable[ICELIB_MAX_NO_OF_TRANSID];
   unsigned int         numberOfTransactionIds;
-  /* StunMsgId transactionId; */
 } ICELIB_LIST_PAIR;
 
 /*  */
