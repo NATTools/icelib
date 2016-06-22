@@ -14,5 +14,6 @@ sa_test ( icelib )
 sa_test ( icelibtypes )
 sa_test ( icelib_running )
 sa_test ( icelib_ce )
+sa_test ( icelib_nomination )
 
 include ( CTest )

@@ -1798,7 +1798,8 @@ CTEST(icelib,findCandidates)
                  (struct sockaddr*)&addr1 );
 
   mediaStream.candidate[0].transport = ICE_TRANS_UDP;
-  /* mediaStream.candidate[0].transport   = ICE_TRANSPORT_proto(ICE_TRANS_UDP); */
+  /* mediaStream.candidate[0].transport   = ICE_TRANSPORT_proto(ICE_TRANS_UDP);
+   * */
   /* mediaStream.candidate[0].transport   = IPPROTO_UDP; */
   mediaStream.candidate[0].componentid = 1;
 
