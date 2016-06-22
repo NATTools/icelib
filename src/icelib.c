@@ -4614,7 +4614,7 @@ pICELIB_pickValidPairForNomination(ICELIB_VALIDLIST* pValidList,
                                    uint32_t          componentId)
 {
   int32_t  bestpair_idx = -1;
-  uint32_t max_pri      = 0;
+  uint64_t max_pri      = 0;
 
   if (pValidList->pairs.numberOfElements == 0)
   {
