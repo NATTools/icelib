@@ -260,8 +260,6 @@ typedef struct {
 typedef struct {
   ICELIB_LIST_VL pairs;
   uint32_t       nextPairId;
-  uint32_t       readyToNominateWeighting;
-  uint32_t       nominatedPathScore;
 } ICELIB_VALIDLIST;
 
 

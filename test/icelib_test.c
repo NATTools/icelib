@@ -22,6 +22,19 @@
 #define FOUNDATION_RELAY    "4"
 #define FOUNDATION_PRFLX    "2"
 
+
+void
+printLog(void*           pUserData,
+         ICELIB_logLevel logLevel,
+         const char*     str)
+{
+  (void)pUserData;
+  (void)logLevel;
+  (void)str;
+  printf("%s\n", str);
+}
+
+
 ICELIB_Result
 ICELIB_TEST_sendConnectivityCheck(void*                  pUserData,
                                   int                    proto,
@@ -117,6 +130,11 @@ ICELIB_TEST_sendConnectivityCheck(void*                  pUserData,
   (void) pUserData;
   (void) proto; /* Todo add TCP checks; */
 
+  printf("\n --------- Sending connectivity check -----------\n");
+  if (useCandidate)
+  {
+    printf("           Use Candidate   \n");
+  }
   connChkCB.gotCB       = true;
   connChkCB.destination = destination;
   connChkCB.source      = source;
@@ -194,8 +212,8 @@ CTEST_SETUP(data)
   iceConfig.maxCheckListPairs    = ICELIB_MAX_PAIRS;
   iceConfig.aggressiveNomination = false;
   iceConfig.iceLite              = false;
-  /* iceConfig.logLevel = ICELIB_logDebug; */
-  iceConfig.logLevel = ICELIB_logDisable;
+  iceConfig.logLevel             = ICELIB_logDebug;
+  /* iceConfig.logLevel = ICELIB_logDisable; */
 
 
   ICELIB_Constructor(icelib,
@@ -204,6 +222,11 @@ CTEST_SETUP(data)
   ICELIB_setCallbackOutgoingBindingRequest(icelib,
                                            ICELIB_TEST_sendConnectivityCheck,
                                            NULL);
+  ICELIB_setCallbackLog(icelib,
+                        printLog,
+                        NULL,
+                        ICELIB_logDebug);
+
 
   /* Local side */
   mediaIdx = ICELIB_addLocalMediaStream(icelib,
@@ -1441,7 +1464,7 @@ CTEST2(data, conncheck_withIncomming)
                       INET_ADDRSTRLEN) == 0);
   ASSERT_FALSE(connChkCB.useRelay);
 
-  stunlib_createId(&stunId );
+  stunlib_createId(&stunId);
   sockaddr_initFromString( (struct sockaddr*)&srcAddr, srcAddrStr );
   sockaddr_initFromString( (struct sockaddr*)&dstAddr, "192.168.2.10:3456" );
   ICELIB_getCheckListRemoteUsernamePair(ufragPair,
@@ -1643,7 +1666,7 @@ CTEST2(data, ICE_Incomming_Response)
   /* 1. Tick */
 
 
-  for (i = 0; i < 10000; i++)
+  for (i = 0; i < 5000; i++)
   {
     ICELIB_Tick(icelib);
     if (connChkCB.gotCB)
@@ -1654,7 +1677,7 @@ CTEST2(data, ICE_Incomming_Response)
                          true );
 
       /* We pretend to be the perfect network. Responses arrive imediately! */
-
+      printf(" -------> Testclient sending response\n");
       ICELIB_incomingBindingResponse(icelib,
                                      200,
                                      connChkCB.transactionId,
@@ -1666,7 +1689,7 @@ CTEST2(data, ICE_Incomming_Response)
     }
   }
 
-  /* ICELIB_validListDump(&icelib->streamControllers[0].validList); */
+  ICELIB_validListDump(&icelib->streamControllers[0].validList);
 
   ASSERT_TRUE(icelib->iceState == ICELIB_COMPLETED);
 }
@@ -1682,7 +1705,7 @@ CTEST(icelib, compareTransactionId)
   StunMsgId id2;
   StunMsgId id3;
 
-  stunlib_createId(&id1 );
+  stunlib_createId(&id1);
 
 
   memcpy(&id3, &id1, STUN_MSG_ID_SIZE);
@@ -1774,9 +1797,9 @@ CTEST(icelib,findCandidates)
   sockaddr_copy( (struct sockaddr*)&mediaStream.candidate[0].connectionAddr,
                  (struct sockaddr*)&addr1 );
 
-  mediaStream.candidate[0].transport   = ICE_TRANS_UDP;
-  //mediaStream.candidate[0].transport   = ICE_TRANSPORT_proto(ICE_TRANS_UDP);
-  //mediaStream.candidate[0].transport   = IPPROTO_UDP;
+  mediaStream.candidate[0].transport = ICE_TRANS_UDP;
+  /* mediaStream.candidate[0].transport   = ICE_TRANSPORT_proto(ICE_TRANS_UDP); */
+  /* mediaStream.candidate[0].transport   = IPPROTO_UDP; */
   mediaStream.candidate[0].componentid = 1;
 
 

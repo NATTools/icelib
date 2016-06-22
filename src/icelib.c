@@ -2546,7 +2546,6 @@ ICELIB_countNominatedPairsInValidList(ICELIB_VALIDLIST* pValidList)
       ++count;
     }
   }
-
   return count;
 }
 
@@ -4468,14 +4467,56 @@ ICELIB_incomingBindingRequest(ICELIB_INSTANCE*       pInstance,
 /*      updating of state machinery. */
 /*  */
 
-bool
-ICELIB_isNominatingCriteriaMet(ICELIB_VALIDLIST* pValidList)
+
+uint64_t
+ICELIB_getMaxpairPriority(ICELIB_CHECKLIST* pChecklist,
+                          uint32_t          componentId)
 {
-  if (pValidList->readyToNominateWeighting >= ICELIB_COMPLETE_WEIGHT)
+  uint64_t max = 0;
+  for (uint32_t i = 0; i < pChecklist->numberOfPairs; i++)
   {
-    return true;
+    if ( (pChecklist->checkListPairs[i].pairPriority > max) &&
+         (pChecklist->checkListPairs[i].pLocalCandidate->componentid ==
+          componentId) )
+    {
+      max = pChecklist->checkListPairs[i].pairPriority;
+    }
   }
-  return false;
+  return max;
+}
+
+bool
+ICELIB_isNominatingCriteriaMet(ICELIB_VALIDLIST* pValidList,
+                               ICELIB_CHECKLIST* pCheckList)
+{
+  /* This is iffy, must change all of this. Just to get going... */
+  bool compOk[ICE_MAX_COMPONENTS];
+
+  memset(&compOk, 0, sizeof compOk);
+
+  for (uint32_t i = 0; i < pCheckList->componentList.numberOfComponents; i++)
+  {
+    uint32_t id           = pCheckList->componentList.componentIds[i];
+    uint64_t max_priority = ICELIB_getMaxpairPriority(pCheckList, id);
+
+    for (uint32_t j = 0; j < pValidList->pairs.numberOfElements; j++)
+    {
+      if ( (pValidList->pairs.elements[j].pairPriority == max_priority) &&
+           (pValidList->pairs.elements[j].pLocalCandidate->componentid == id) )
+      {
+        compOk[i] = true;
+      }
+    }
+  }
+
+  for (uint32_t i = 0; i < pCheckList->componentList.numberOfComponents; i++)
+  {
+    if (compOk[i] == false)
+    {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool
@@ -4483,49 +4524,31 @@ ICELIB_isNominatingCriteriaMetForAllMediaStreams(ICELIB_INSTANCE* pInstance)
 {
   unsigned int      i;
   ICELIB_VALIDLIST* pValidList;
-  ICELIB_CHECKLIST* pCheckList = NULL;
-  uint32_t          pathScore  = 0;
-
+  ICELIB_CHECKLIST* pCheckList;
+  /* printf("/n ICELIB cheking if ready to nominate (%i)\n", */
+  /*       pInstance->numberOfMediaStreams); */
   for (i = 0; i < pInstance->numberOfMediaStreams; ++i)
   {
+    /* printf("    media line: %i\n", i); */
     pValidList = &pInstance->streamControllers[ i].validList;
+    pCheckList = &pInstance->streamControllers[ i].checkList;
 
     if ( (pInstance->localIceMedia.mediaStream[i].numberOfCandidates == 0) ||
          (pInstance->remoteIceMedia.mediaStream[i].numberOfCandidates == 0) )
     {
       /* Disabled medialine. Ignore */
+      /* printf("        -> Disabled (ignoring)\n"); */
       continue;
     }
-    if ( !ICELIB_isNominatingCriteriaMet(pValidList) )
+    if ( !ICELIB_isNominatingCriteriaMet(pValidList, pCheckList) )
     {
+      /* printf("        -> Not ready\n"); */
       return false;
     }
+    /* printf("        -> Ready\n"); */
   }
-  /* Do additional check that all paths for all media streams are the same; */
-  pValidList = &pInstance->streamControllers[0].validList;
-  pathScore  = pValidList->nominatedPathScore;
+  /* ToDo additional check that all paths for all media streams are the same; */
 
-  for (i = 1; i < pInstance->numberOfMediaStreams; i++)
-  {
-    pValidList = &pInstance->streamControllers[i].validList;
-    pCheckList = &pInstance->streamControllers[i].checkList;
-
-    if ( (pInstance->localIceMedia.mediaStream[i].numberOfCandidates == 0) ||
-         (pInstance->remoteIceMedia.mediaStream[i].numberOfCandidates == 0) )
-    {
-      /* Disabled medialine. Ignore */
-      continue;
-    }
-
-    if (pathScore != pValidList->nominatedPathScore)
-    {
-      ICELIB_updateValidPairReadyToNominateWeightingMediaStream( pCheckList,
-                                                                 pValidList,
-                                                                 ICELIB_getWeightTimeMultiplier(
-                                                                   pInstance) );
-      return false;
-    }
-  }
   return true;
 }
 
@@ -4541,8 +4564,6 @@ ICELIB_stopChecks(ICELIB_INSTANCE*       pInstance,
               ICELIB_logDebug,
               "Stopping checks (%i)",
               pCheckList->numberOfPairs);
-
-
 
   pCheckList->stopChecks = true;
 
@@ -4589,57 +4610,46 @@ ICELIB_stopChecks(ICELIB_INSTANCE*       pInstance,
 
 
 ICELIB_LIST_PAIR*
-pICELIB_pickValidPairForNominationNormalMode(ICELIB_VALIDLIST* pValidList,
-                                             uint32_t          componentId)
-
+pICELIB_pickValidPairForNomination(ICELIB_VALIDLIST* pValidList,
+                                   uint32_t          componentId)
 {
-  unsigned int i;
+  int32_t  bestpair_idx = -1;
+  uint32_t max_pri      = 0;
 
-  for (i = 0; i < pValidList->pairs.numberOfElements; i++)
+  if (pValidList->pairs.numberOfElements == 0)
   {
+    return NULL;
+  }
 
-    const ICE_CANDIDATE* pLocalCandidate =
-      pValidList->pairs.elements[i].pLocalCandidate;
-    const ICE_CANDIDATE* pRemoteCandidate =
-      pValidList->pairs.elements[i].pRemoteCandidate;
-
-    uint32_t pathScore = ICELIB_calculateReadyWeight(pLocalCandidate->type,
-                                                     pRemoteCandidate->type,
-                                                     1);
-
-    if (pLocalCandidate->componentid == componentId)
+  for (uint32_t i = 0; i < pValidList->pairs.numberOfElements; i++)
+  {
+    if (componentId ==
+        pValidList->pairs.elements[i].pLocalCandidate->componentid)
     {
-      if (pathScore == pValidList->nominatedPathScore)
+      if (pValidList->pairs.elements[i].pairPriority > max_pri)
       {
-
-        if (pValidList->pairs.elements[i].nominatedPair)
-        {
-          /* Already nominated.. */
-          return NULL;
-        }
-        else
-        {
-          return &pValidList->pairs.elements[i];
-        }
+        max_pri      = pValidList->pairs.elements[i].pairPriority;
+        bestpair_idx = i;
       }
     }
   }
-
-  return NULL;
+  if (pValidList->pairs.elements[bestpair_idx].nominatedPair)
+  {
+    /* Already nominated.. */
+    return NULL;
+  }
+  else
+  {
+    if (bestpair_idx == -1)
+    {
+      return NULL;
+    }
+    else
+    {
+      return &pValidList->pairs.elements[bestpair_idx];
+    }
+  }
 }
-
-
-ICELIB_LIST_PAIR*
-pICELIB_pickValidPairForNomination(ICELIB_INSTANCE*  pInstance,
-                                   ICELIB_VALIDLIST* pValidList,
-                                   ICELIB_CHECKLIST* pCheckList,
-                                   uint32_t          componentId)
-{
-  (void)pInstance;
-  (void)pCheckList;
-  return pICELIB_pickValidPairForNominationNormalMode(pValidList, componentId);
-}
-
 
 
 void
@@ -4703,13 +4713,13 @@ ICELIB_nominateRegularIfComplete(ICELIB_INSTANCE* pInstance)
 
   if ( ICELIB_isNominatingCriteriaMetForAllMediaStreams(pInstance) )
   {
-    unsigned int i;
+    /* printf("Nominating criteria met for all\n"); */
     ICELIB_log1(&pInstance->callbacks.callbackLog,
                 ICELIB_logDebug,
                 "All media streams are ready to be nominated (%i)",
                 pInstance->numberOfMediaStreams);
 
-    for (i = 0; i < pInstance->numberOfMediaStreams; ++i)
+    for (uint32_t i = 0; i < pInstance->numberOfMediaStreams; ++i)
     {
       unsigned int numberOfComp = 0;
       pCheckList           = &pInstance->streamControllers[ i].checkList;
@@ -4724,20 +4734,22 @@ ICELIB_nominateRegularIfComplete(ICELIB_INSTANCE* pInstance)
       }
       else
       {
-        uint32_t j;
         ICELIB_stopChecks(pInstance, pCheckList, pTriggeredChecksFifo);
-        for (j = 0; j < numberOfComp; j++)
+        for (uint32_t j = 0; j < numberOfComp; j++)
         {
           uint32_t componentId = pCheckList->componentList.componentIds[j];
 
-          pValidPair = pICELIB_pickValidPairForNomination(pInstance,
-                                                          pValidList,
-                                                          pCheckList,
+          pValidPair = pICELIB_pickValidPairForNomination(pValidList,
                                                           componentId);
+
           if (pValidPair != NULL)
           {
             ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logDebug,
-                       "Enqueueing valid pair...");
+                       "Enqueueing valid pair");
+
+            ICELIB_pairDumpLog(&pInstance->callbacks.callbackLog,
+                               ICELIB_logDebug,
+                               pValidPair);
 
             ICELIB_enqueueValidPair(pTriggeredChecksFifo,
                                     pCheckList,
@@ -4940,7 +4952,6 @@ ICELIB_updateCheckListStateConcluding(ICELIB_CHECKLIST*      pCheckList,
         if ( pValidList->pairs.elements[j].nominatedPair &&
              (pLocalCandidate->componentid == componentId) )
         {
-
           foundComp++;
           if (foundComp == numberOfComp)
           {
@@ -4953,16 +4964,6 @@ ICELIB_updateCheckListStateConcluding(ICELIB_CHECKLIST*      pCheckList,
       }
     }
   }
-}
-
-uint32_t
-ICELIB_getWeightTimeMultiplier(ICELIB_INSTANCE* pInstance)
-{
-  uint32_t timeMS;
-
-  timeMS = pInstance->tickCount * pInstance->iceConfiguration.tickIntervalMS;
-  /* Don't want to return a multiplier less than 1 */
-  return (timeMS / ICELIB_TIME_MULTIPLIER_INCREASE_MS) + 1;
 }
 
 
@@ -5123,144 +5124,6 @@ ICELIB_resetAllStreamControllers(ICELIB_INSTANCE* pInstance)
   }
 }
 
-uint32_t
-ICELIB_getCandidateTypeWeight(ICE_CANDIDATE_TYPE type)
-{
-  switch (type)
-  {
-  case ICE_CAND_TYPE_NONE:
-    return 0;
-  case ICE_CAND_TYPE_HOST:
-    return ICELIB_HOST_WEIGHT;
-  case ICE_CAND_TYPE_SRFLX:
-    return ICELIB_SRFLX_WEIGHT;
-  case ICE_CAND_TYPE_RELAY:
-    return ICELIB_RELAY_WEIGHT;
-  case ICE_CAND_TYPE_PRFLX:
-    return ICELIB_PRFLX_WEIGHT;
-  }
-  return 0;
-}
-
-uint32_t
-ICELIB_calculateReadyWeight(ICE_CANDIDATE_TYPE localType,
-                            ICE_CANDIDATE_TYPE remoteType,
-                            uint32_t           timeMultiplier)
-{
-  uint32_t weight = 0;
-
-  weight += ICELIB_getCandidateTypeWeight(localType);
-  weight += ( 2 * ICELIB_getCandidateTypeWeight(remoteType) );
-
-  weight *= timeMultiplier;
-  return weight;
-}
-
-static uint32_t
-ICELIB_getBestWeight(ICELIB_VALIDLIST* pValidList,
-                     uint32_t          componentId,
-                     uint32_t          timeMultiplier)
-{
-  uint32_t i;
-  uint32_t weight = 0;
-
-  for (i = 0; i < pValidList->pairs.numberOfElements; i++)
-  {
-
-    if (componentId ==
-        pValidList->pairs.elements[i].pLocalCandidate->componentid)
-    {
-      uint32_t tmpWeight = ICELIB_calculateReadyWeight(
-        pValidList->pairs.elements[i].pLocalCandidate->type,
-        pValidList->pairs.elements[
-          i].pRemoteCandidate->type,
-        timeMultiplier);
-      if (tmpWeight > weight)
-      {
-        weight = tmpWeight;
-      }
-    }
-  }
-
-  return weight;
-}
-
-static uint32_t
-ICELIB_getBestScore(ICELIB_VALIDLIST* pValidList,
-                    uint32_t          componentId)
-{
-  return ICELIB_getBestWeight(pValidList, componentId, 1);
-}
-
-
-void
-ICELIB_updateValidPairReadyToNominateWeightingMediaStream(
-  ICELIB_CHECKLIST* pCheckList,
-  ICELIB_VALIDLIST* pValidList,
-  uint32_t          timeMultiplier)
-{
-  uint32_t weight       = 0;
-  uint32_t numberOfComp = pCheckList->componentList.numberOfComponents;
-  uint32_t i;
-
-  for (i = 0; i < numberOfComp; i++)
-  {
-    /* Get the one with highest path score in the list. */
-    if (weight == 0)
-    {
-      weight = ICELIB_getBestWeight(pValidList,
-                                    pCheckList->componentList.componentIds[i],
-                                    timeMultiplier);
-      /* Special case with one component only */
-      if (numberOfComp == 1)
-      {
-        pValidList->readyToNominateWeighting = weight;
-        pValidList->nominatedPathScore       = ICELIB_getBestScore(pValidList,
-                                                                   pCheckList->componentList.componentIds[
-                                                                     i]);
-        return;
-      }
-
-    }
-    else
-    {
-      uint32_t tmpWeight = ICELIB_getBestWeight(pValidList,
-                                                pCheckList->componentList.componentIds[
-                                                  i],
-                                                timeMultiplier);
-      if (tmpWeight == weight)
-      {
-        /* We have same for all components */
-        pValidList->readyToNominateWeighting = weight;
-        pValidList->nominatedPathScore       = ICELIB_getBestScore(pValidList,
-                                                                   pCheckList->componentList.componentIds[
-                                                                     i]);
-
-      }
-      else
-      {
-        pValidList->readyToNominateWeighting = 0;
-
-      }
-    }
-  }
-}
-
-void
-ICELIB_updateValidPairReadyToNominateWeighting(ICELIB_INSTANCE* pInstance)
-{
-  unsigned int i;
-  for (i = 0; i < pInstance->numberOfMediaStreams; i++)
-  {
-    ICELIB_updateValidPairReadyToNominateWeightingMediaStream(
-      &pInstance->streamControllers[i].checkList,
-      &pInstance->streamControllers[
-        i].validList,
-      ICELIB_getWeightTimeMultiplier(
-        pInstance) );
-  }
-
-}
 
 /* -----------------------------------------------------------------------------
  * */
@@ -5523,7 +5386,6 @@ ICELIB_Tick(ICELIB_INSTANCE* pInstance)
     ICELIB_tickStreamController(pInstance);
     if (pInstance->iceState == ICELIB_RUNNING)
     {
-      ICELIB_updateValidPairReadyToNominateWeighting(pInstance);
       ICELIB_concludeICEProcessingIfComplete(pInstance);
       ICELIB_updatingStates(pInstance);
     }
