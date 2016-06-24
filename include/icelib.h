@@ -106,7 +106,15 @@ typedef ICELIB_Result (* ICELIB_connectivityChecksComplete)(void*    pUserData,
                                                             isControlling,
                                                             bool     iceFailed);
 
-
+/*  */
+/* ----- Callback to signal that a canidate pair has been nominated */
+/*  */
+typedef ICELIB_Result (* ICELIB_nominated)(void*                  pUserData,
+                                           uint32_t               userValue1,
+                                           uint64_t               priority,
+                                           int32_t                proto,
+                                           const struct sockaddr* local,
+                                           const struct sockaddr* remote);
 
 /*  */
 /* ----- Callback used to generate keepalives */
@@ -154,6 +162,12 @@ typedef struct {
 } ICELIB_CALLBACK_COMPLETE;
 
 typedef struct {
+  ICELIB_nominated  pICELIB_nominated;
+  void*             pNominatedUserData;
+  ICELIB_INSTANCE_* pInstance;
+} ICELIB_CALLBACK_NOMINATED;
+
+typedef struct {
   ICELIB_outgoingBindingRequest pICELIB_sendBindingRequest;
   void*                         pBindingRequestUserData;
   ICELIB_INSTANCE_*             pInstance;
@@ -198,6 +212,7 @@ typedef struct {
   ICELIB_CALLBACK_RESPONSE        callbackResponse;
   ICELIB_CALLBACK_KEEPALIVE       callbackKeepAlive;
   ICELIB_CALLBACK_COMPLETE        callbackComplete;
+  ICELIB_CALLBACK_NOMINATED       callbackNominated;
   ICELIB_CALLBACK_CANCEL_REQUEST  callbackCancelRequest;
   ICELIB_CALLBACK_PASSWORD_UPDATE callbackPasswordUpdate;
   ICELIB_CALLBACK_LOG             callbackLog;
@@ -305,6 +320,10 @@ ICELIB_setCallbackConnecitivityChecksComplete(
   ICELIB_connectivityChecksComplete pICELIB_connectivityChecksComplete,
   void*                             userData);
 
+void
+ICELIB_setCallbackNominated(ICELIB_INSTANCE* pInstance,
+                            ICELIB_nominated pICELIB_nominated,
+                            void*            userData);
 void
 ICELIB_setCallbackOutgoingBindingRequest(
   ICELIB_INSTANCE*              pInstance,

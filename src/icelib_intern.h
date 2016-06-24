@@ -536,7 +536,8 @@ ICELIB_ceaseRetransmissions(ICELIB_CHECKLIST*      pCheckList,
                             ICELIB_TRIGGERED_FIFO* pTriggeredChecksFifo);
 
 void
-ICELIB_updateCheckListStateConcluding(ICELIB_CHECKLIST*      pCheckList,
+ICELIB_updateCheckListStateConcluding(ICELIB_INSTANCE*       pInstance,
+                                      ICELIB_CHECKLIST*      pCheckList,
                                       ICELIB_VALIDLIST*      pValidList,
                                       ICELIB_TRIGGERED_FIFO* pTriggeredChecksFifo,
                                       ICELIB_CALLBACK_LOG*   pCallbackLog);
