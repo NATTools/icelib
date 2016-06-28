@@ -2366,8 +2366,6 @@ pICELIB_validListFindPairById(ICELIB_VALIDLIST* pValidList,
 void
 ICELIB_storeRemoteCandidates(ICELIB_INSTANCE* pInstance)
 {
-
-
   ICELIB_VALIDLIST* pValidList;
   unsigned int      i,j;
 
@@ -4996,8 +4994,8 @@ ICELIB_updateCheckListStateConcluding(ICELIB_INSTANCE*       pInstance,
     {
       if (pInstance->iceConfiguration.aggressiveNomination)
       {
-        /* Did we nominate the apir with highest pri in the checlist? */
-        /* Valid list is sorted.. So we just compare the first entry. */
+        /* Did we nominate the pair with highest pri in the checlist? */
+        /* Valid list is sorted. So we just compare the first entry. */
         uint64_t maxpri;
         maxpri = ICELIB_getMaxpairPriority(pCheckList, 1);
 
@@ -5007,16 +5005,11 @@ ICELIB_updateCheckListStateConcluding(ICELIB_INSTANCE*       pInstance,
         }
         else
         {
-          /* Almost done. Check if it is nominated. If not wait a BindingRequest */
           if (!pValidList->pairs.elements[0].nominatedPair)
           {
             return;
           }
-
         }
-        /* Have we timed out yet? */
-
-
       }
       else
       {
@@ -5082,6 +5075,14 @@ ICELIB_updatingStates(ICELIB_INSTANCE* pInstance)
 
   for (i = 0; i < pInstance->numberOfMediaStreams; ++i)
   {
+    if ( (pInstance->localIceMedia.mediaStream[i].numberOfCandidates == 0) ||
+         (pInstance->remoteIceMedia.mediaStream[i].numberOfCandidates == 0) )
+    {
+      /* Disabled medialine. Ignore */
+      continue;
+    }
+
+
     pCheckList           = &pInstance->streamControllers[ i].checkList;
     pValidList           = &pInstance->streamControllers[ i].validList;
     pTriggeredChecksFifo =
@@ -5136,13 +5137,22 @@ ICELIB_updatingStates(ICELIB_INSTANCE* pInstance)
         pICELIB_connectivityChecksComplete;
 
       /* If aggressive and nominated pair exist, this is actually a sucsess */
-      /* Maybee check for parial failures..?? */
+      /* Maybee check for partial failures..?? */
       if ( pInstance->iceConfiguration.aggressiveNomination &&
            (ICELIB_countNominatedPairsInValidList(pValidList) > 0) )
       {
         pInstance->iceState = ICELIB_COMPLETED;
+        ICELIB_storeRemoteCandidates(pInstance);
         ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logInfo,
                    "ICE sucsess agressive (Timeout)");
+        if (ConnectivityCheckComplete != NULL)
+        {
+          ConnectivityCheckComplete(
+            pInstance->callbacks.callbackComplete.pConnectivityChecksCompleteUserData,
+            pInstance->localIceMedia.mediaStream[0].userValue1,
+            pInstance->iceControlling,
+            false);
+        }
 
       }
       else
@@ -5151,15 +5161,16 @@ ICELIB_updatingStates(ICELIB_INSTANCE* pInstance)
         pInstance->iceState = ICELIB_FAILED;
         ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logInfo,
                    "ICE failed (Timeout)");
+        if (ConnectivityCheckComplete != NULL)
+        {
+          ConnectivityCheckComplete(
+            pInstance->callbacks.callbackComplete.pConnectivityChecksCompleteUserData,
+            pInstance->localIceMedia.mediaStream[0].userValue1,
+            pInstance->iceControlling,
+            true);
+        }
       }
-      if (ConnectivityCheckComplete != NULL)
-      {
-        ConnectivityCheckComplete(
-          pInstance->callbacks.callbackComplete.pConnectivityChecksCompleteUserData,
-          pInstance->localIceMedia.mediaStream[0].userValue1,
-          pInstance->iceControlling,
-          true);
-      }
+
 
     }
   }
@@ -5649,8 +5660,8 @@ ICELIB_getActiveRemoteCandidates(const ICELIB_INSTANCE* pInstance,
 
 
   if ( pInstance &&
-       (pInstance->streamControllers[mediaLineId].checkList.checkListState ==
-        ICELIB_CHECKLIST_COMPLETED) )
+       (pInstance->streamControllers[mediaLineId].checkList.checkListState !=
+        ICELIB_CHECKLIST_FAILED) )
   {
     return &pInstance->streamControllers[mediaLineId].remoteCandidates;
   }
