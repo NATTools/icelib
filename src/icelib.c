@@ -3082,6 +3082,8 @@ ICELIB_processSuccessResponse(ICELIB_INSTANCE*        pInstance,
         {
           Nominated(pInstance->callbacks.callbackNominated.pNominatedUserData,
                     pLocalMediaStream->userValue1,
+                    pLocalMediaStream->userValue2,
+                    pPair->pLocalCandidate->componentid,
                     pPair->pairPriority,
                     proto,
                     (const struct sockaddr*)&pPair->pLocalCandidate->connectionAddr,
