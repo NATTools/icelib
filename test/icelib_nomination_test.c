@@ -51,8 +51,8 @@ uint32_t       num_pair_nom = 0;
 ICELIB_Result
 Nominated(void*                  pUserData,
           uint32_t               userValue1,
-	  uint32_t               /*userValue2*/,
-	  uint32_t               /*componentId*/,
+          uint32_t               userValue2,
+          uint32_t               componentId,
           uint64_t               priority,
           int32_t                proto,
           const struct sockaddr* local,
@@ -60,6 +60,8 @@ Nominated(void*                  pUserData,
 {
   (void)pUserData;
   (void)userValue1;
+  (void)userValue2;
+  (void)componentId;
   (void)priority;
   (void) proto;
   (void)local;
