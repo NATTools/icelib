@@ -2366,8 +2366,6 @@ pICELIB_validListFindPairById(ICELIB_VALIDLIST* pValidList,
 void
 ICELIB_storeRemoteCandidates(ICELIB_INSTANCE* pInstance)
 {
-
-
   ICELIB_VALIDLIST* pValidList;
   unsigned int      i,j;
 
@@ -2546,7 +2544,6 @@ ICELIB_countNominatedPairsInValidList(ICELIB_VALIDLIST* pValidList)
       ++count;
     }
   }
-
   return count;
 }
 
@@ -3028,7 +3025,7 @@ ICELIB_processSuccessResponse(ICELIB_INSTANCE*        pInstance,
                               bool                    iceControlling)
 {
   bool                      listFull;
-  int                       proto;
+  int32_t                   proto;
   uint16_t                  componentId;
   ICELIB_LIST_PAIR          candidatePair;
   ICELIB_LIST_PAIR*         pKnownPair = NULL;
@@ -3077,7 +3074,22 @@ ICELIB_processSuccessResponse(ICELIB_INSTANCE*        pInstance,
       ICELIB_log(&pInstance->callbacks.callbackLog,
                  ICELIB_logDebug,
                  "Pair Nominated!");
-
+      if (pInstance->iceConfiguration.aggressiveNomination)
+      {
+        ICELIB_nominated Nominated;
+        Nominated = pInstance->callbacks.callbackNominated.pICELIB_nominated;
+        if (Nominated != NULL)
+        {
+          Nominated(pInstance->callbacks.callbackNominated.pNominatedUserData,
+                    pLocalMediaStream->userValue1,
+                    pLocalMediaStream->userValue2,
+                    pPair->pLocalCandidate->componentid,
+                    pPair->pairPriority,
+                    proto,
+                    (const struct sockaddr*)&pPair->pLocalCandidate->connectionAddr,
+                    (const struct sockaddr*)&pPair->pRemoteCandidate->connectionAddr);
+        }
+      }
       ICELIB_updatingStates(pInstance);
       return;
     }
@@ -4468,14 +4480,56 @@ ICELIB_incomingBindingRequest(ICELIB_INSTANCE*       pInstance,
 /*      updating of state machinery. */
 /*  */
 
-bool
-ICELIB_isNominatingCriteriaMet(ICELIB_VALIDLIST* pValidList)
+
+uint64_t
+ICELIB_getMaxpairPriority(ICELIB_CHECKLIST* pChecklist,
+                          uint32_t          componentId)
 {
-  if (pValidList->readyToNominateWeighting >= ICELIB_COMPLETE_WEIGHT)
+  uint64_t max = 0;
+  for (uint32_t i = 0; i < pChecklist->numberOfPairs; i++)
   {
-    return true;
+    if ( (pChecklist->checkListPairs[i].pairPriority > max) &&
+         (pChecklist->checkListPairs[i].pLocalCandidate->componentid ==
+          componentId) )
+    {
+      max = pChecklist->checkListPairs[i].pairPriority;
+    }
   }
-  return false;
+  return max;
+}
+
+bool
+ICELIB_isNominatingCriteriaMet(ICELIB_VALIDLIST* pValidList,
+                               ICELIB_CHECKLIST* pCheckList)
+{
+  /* This is iffy, must change all of this. Just to get going... */
+  bool compOk[ICE_MAX_COMPONENTS];
+
+  memset(&compOk, 0, sizeof compOk);
+
+  for (uint32_t i = 0; i < pCheckList->componentList.numberOfComponents; i++)
+  {
+    uint32_t id           = pCheckList->componentList.componentIds[i];
+    uint64_t max_priority = ICELIB_getMaxpairPriority(pCheckList, id);
+
+    for (uint32_t j = 0; j < pValidList->pairs.numberOfElements; j++)
+    {
+      if ( (pValidList->pairs.elements[j].pairPriority == max_priority) &&
+           (pValidList->pairs.elements[j].pLocalCandidate->componentid == id) )
+      {
+        compOk[i] = true;
+      }
+    }
+  }
+
+  for (uint32_t i = 0; i < pCheckList->componentList.numberOfComponents; i++)
+  {
+    if (compOk[i] == false)
+    {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool
@@ -4483,49 +4537,31 @@ ICELIB_isNominatingCriteriaMetForAllMediaStreams(ICELIB_INSTANCE* pInstance)
 {
   unsigned int      i;
   ICELIB_VALIDLIST* pValidList;
-  ICELIB_CHECKLIST* pCheckList = NULL;
-  uint32_t          pathScore  = 0;
-
+  ICELIB_CHECKLIST* pCheckList;
+  /* printf("/n ICELIB cheking if ready to nominate (%i)\n", */
+  /*       pInstance->numberOfMediaStreams); */
   for (i = 0; i < pInstance->numberOfMediaStreams; ++i)
   {
+    /* printf("    media line: %i\n", i); */
     pValidList = &pInstance->streamControllers[ i].validList;
+    pCheckList = &pInstance->streamControllers[ i].checkList;
 
     if ( (pInstance->localIceMedia.mediaStream[i].numberOfCandidates == 0) ||
          (pInstance->remoteIceMedia.mediaStream[i].numberOfCandidates == 0) )
     {
       /* Disabled medialine. Ignore */
+      /* printf("        -> Disabled (ignoring)\n"); */
       continue;
     }
-    if ( !ICELIB_isNominatingCriteriaMet(pValidList) )
+    if ( !ICELIB_isNominatingCriteriaMet(pValidList, pCheckList) )
     {
+      /* printf("        -> Not ready\n"); */
       return false;
     }
+    /* printf("        -> Ready\n"); */
   }
-  /* Do additional check that all paths for all media streams are the same; */
-  pValidList = &pInstance->streamControllers[0].validList;
-  pathScore  = pValidList->nominatedPathScore;
+  /* ToDo additional check that all paths for all media streams are the same; */
 
-  for (i = 1; i < pInstance->numberOfMediaStreams; i++)
-  {
-    pValidList = &pInstance->streamControllers[i].validList;
-    pCheckList = &pInstance->streamControllers[i].checkList;
-
-    if ( (pInstance->localIceMedia.mediaStream[i].numberOfCandidates == 0) ||
-         (pInstance->remoteIceMedia.mediaStream[i].numberOfCandidates == 0) )
-    {
-      /* Disabled medialine. Ignore */
-      continue;
-    }
-
-    if (pathScore != pValidList->nominatedPathScore)
-    {
-      ICELIB_updateValidPairReadyToNominateWeightingMediaStream( pCheckList,
-                                                                 pValidList,
-                                                                 ICELIB_getWeightTimeMultiplier(
-                                                                   pInstance) );
-      return false;
-    }
-  }
   return true;
 }
 
@@ -4541,8 +4577,6 @@ ICELIB_stopChecks(ICELIB_INSTANCE*       pInstance,
               ICELIB_logDebug,
               "Stopping checks (%i)",
               pCheckList->numberOfPairs);
-
-
 
   pCheckList->stopChecks = true;
 
@@ -4589,57 +4623,45 @@ ICELIB_stopChecks(ICELIB_INSTANCE*       pInstance,
 
 
 ICELIB_LIST_PAIR*
-pICELIB_pickValidPairForNominationNormalMode(ICELIB_VALIDLIST* pValidList,
-                                             uint32_t          componentId)
-
+pICELIB_pickValidPairForNomination(ICELIB_VALIDLIST* pValidList,
+                                   uint32_t          componentId)
 {
-  unsigned int i;
+  int32_t  bestpair_idx = -1;
+  uint64_t max_pri      = 0;
 
-  for (i = 0; i < pValidList->pairs.numberOfElements; i++)
+  if (pValidList->pairs.numberOfElements == 0)
   {
+    return NULL;
+  }
 
-    const ICE_CANDIDATE* pLocalCandidate =
-      pValidList->pairs.elements[i].pLocalCandidate;
-    const ICE_CANDIDATE* pRemoteCandidate =
-      pValidList->pairs.elements[i].pRemoteCandidate;
-
-    uint32_t pathScore = ICELIB_calculateReadyWeight(pLocalCandidate->type,
-                                                     pRemoteCandidate->type,
-                                                     1);
-
-    if (pLocalCandidate->componentid == componentId)
+  for (uint32_t i = 0; i < pValidList->pairs.numberOfElements; i++)
+  {
+    if (componentId ==
+        pValidList->pairs.elements[i].pLocalCandidate->componentid)
     {
-      if (pathScore == pValidList->nominatedPathScore)
+      if (pValidList->pairs.elements[i].pairPriority > max_pri)
       {
-
-        if (pValidList->pairs.elements[i].nominatedPair)
-        {
-          /* Already nominated.. */
-          return NULL;
-        }
-        else
-        {
-          return &pValidList->pairs.elements[i];
-        }
+        max_pri      = pValidList->pairs.elements[i].pairPriority;
+        bestpair_idx = i;
       }
     }
   }
 
-  return NULL;
+  if (bestpair_idx == -1)
+  {
+    return NULL;
+  }
+  if (pValidList->pairs.elements[bestpair_idx].sentUseCandidateAlready)
+  {
+    /* Already nominated.. */
+    return NULL;
+  }
+  else
+  {
+    return &pValidList->pairs.elements[bestpair_idx];
+  }
+
 }
-
-
-ICELIB_LIST_PAIR*
-pICELIB_pickValidPairForNomination(ICELIB_INSTANCE*  pInstance,
-                                   ICELIB_VALIDLIST* pValidList,
-                                   ICELIB_CHECKLIST* pCheckList,
-                                   uint32_t          componentId)
-{
-  (void)pInstance;
-  (void)pCheckList;
-  return pICELIB_pickValidPairForNominationNormalMode(pValidList, componentId);
-}
-
 
 
 void
@@ -4682,13 +4704,63 @@ ICELIB_enqueueValidPair(ICELIB_TRIGGERED_FIFO* pTriggeredChecksFifo,
 void
 ICELIB_nominateAggressive(ICELIB_INSTANCE* pInstance)
 {
+  ICELIB_CHECKLIST*      pCheckList;
+  ICELIB_VALIDLIST*      pValidList;
+  ICELIB_TRIGGERED_FIFO* pTriggeredChecksFifo;
+  ICELIB_LIST_PAIR*      pValidPair;
+
   ICELIB_log(&pInstance->callbacks.callbackLog,
              ICELIB_logInfo,
              "Aggressive nomination");
-/*  */
-/* ----- ICE-19: 8.1.1.2  Aggressive Nomination */
-/*  */
-/* TODO: Implement */
+
+  /* Go through valid list to see if we can nominate anything? */
+  for (uint32_t i = 0; i < pInstance->numberOfMediaStreams; ++i)
+  {
+    unsigned int numberOfComp = 0;
+    pCheckList           = &pInstance->streamControllers[ i].checkList;
+    pValidList           = &pInstance->streamControllers[ i].validList;
+    pTriggeredChecksFifo =
+      &pInstance->streamControllers[ i].triggeredChecksFifo;
+    numberOfComp = pCheckList->componentList.numberOfComponents;
+
+
+    for (uint32_t j = 0; j < numberOfComp; j++)
+    {
+      uint32_t componentId = pCheckList->componentList.componentIds[j];
+
+      pValidPair = pICELIB_pickValidPairForNomination(pValidList,
+                                                      componentId);
+
+
+      if (pValidPair != NULL)
+      {
+
+        pValidPair->sentUseCandidateAlready = true;
+        ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logDebug,
+                   "Enqueueing valid pair (Aggressive)");
+
+        ICELIB_pairDumpLog(&pInstance->callbacks.callbackLog,
+                           ICELIB_logDebug,
+                           pValidPair);
+
+        ICELIB_enqueueValidPair(pTriggeredChecksFifo,
+                                pCheckList,
+                                &pInstance->callbacks.callbackLog,
+                                pValidPair);
+      }
+      else
+      {
+        ICELIB_log1(&pInstance->callbacks.callbackLog,
+                    ICELIB_logWarning,
+                    "Could not pick valid pair for nomination (CompId: %i)",
+                    componentId);
+
+        ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logError,
+                   "Could not pick a valid pair!");
+      }
+    }
+  }
+
 }
 
 
@@ -4703,13 +4775,13 @@ ICELIB_nominateRegularIfComplete(ICELIB_INSTANCE* pInstance)
 
   if ( ICELIB_isNominatingCriteriaMetForAllMediaStreams(pInstance) )
   {
-    unsigned int i;
+    /* printf("Nominating criteria met for all\n"); */
     ICELIB_log1(&pInstance->callbacks.callbackLog,
                 ICELIB_logDebug,
                 "All media streams are ready to be nominated (%i)",
                 pInstance->numberOfMediaStreams);
 
-    for (i = 0; i < pInstance->numberOfMediaStreams; ++i)
+    for (uint32_t i = 0; i < pInstance->numberOfMediaStreams; ++i)
     {
       unsigned int numberOfComp = 0;
       pCheckList           = &pInstance->streamControllers[ i].checkList;
@@ -4724,20 +4796,22 @@ ICELIB_nominateRegularIfComplete(ICELIB_INSTANCE* pInstance)
       }
       else
       {
-        uint32_t j;
         ICELIB_stopChecks(pInstance, pCheckList, pTriggeredChecksFifo);
-        for (j = 0; j < numberOfComp; j++)
+        for (uint32_t j = 0; j < numberOfComp; j++)
         {
           uint32_t componentId = pCheckList->componentList.componentIds[j];
 
-          pValidPair = pICELIB_pickValidPairForNomination(pInstance,
-                                                          pValidList,
-                                                          pCheckList,
+          pValidPair = pICELIB_pickValidPairForNomination(pValidList,
                                                           componentId);
+
           if (pValidPair != NULL)
           {
             ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logDebug,
-                       "Enqueueing valid pair...");
+                       "Enqueueing valid pair");
+
+            ICELIB_pairDumpLog(&pInstance->callbacks.callbackLog,
+                               ICELIB_logDebug,
+                               pValidPair);
 
             ICELIB_enqueueValidPair(pTriggeredChecksFifo,
                                     pCheckList,
@@ -4859,7 +4933,8 @@ ICELIB_removeWaitingAndFrozen(ICELIB_CHECKLIST*      pCheckList,
 
   ICELIB_validListIteratorConstructor(&vlIterator, pValidList);
 
-  while ( ( pValidPair = pICELIB_validListIteratorNext(&vlIterator) ) != NULL )
+  while ( ( pValidPair = pICELIB_validListIteratorNext(&vlIterator) ) !=
+          NULL )
   {
     if (pValidPair->nominatedPair)
     {
@@ -4901,7 +4976,8 @@ ICELIB_ceaseRetransmissions(ICELIB_CHECKLIST*      pCheckList,
 /* ----- ICE-19: 8.1.2  Update State for a single check list */
 /*  */
 void
-ICELIB_updateCheckListStateConcluding(ICELIB_CHECKLIST*      pCheckList,
+ICELIB_updateCheckListStateConcluding(ICELIB_INSTANCE*       pInstance,
+                                      ICELIB_CHECKLIST*      pCheckList,
                                       ICELIB_VALIDLIST*      pValidList,
                                       ICELIB_TRIGGERED_FIFO* pTriggeredChecksFifo,
                                       ICELIB_CALLBACK_LOG*   pCallbackLog)
@@ -4918,11 +4994,34 @@ ICELIB_updateCheckListStateConcluding(ICELIB_CHECKLIST*      pCheckList,
     }
     else
     {
-      ICELIB_removeWaitingAndFrozen(pCheckList,
-                                    pValidList,
-                                    pTriggeredChecksFifo,
-                                    pCallbackLog);
-      ICELIB_ceaseRetransmissions(pCheckList, pValidList, pTriggeredChecksFifo);
+      if (pInstance->iceConfiguration.aggressiveNomination)
+      {
+        /* Did we nominate the pair with highest pri in the checlist? */
+        /* Valid list is sorted. So we just compare the first entry. */
+        uint64_t maxpri;
+        maxpri = ICELIB_getMaxpairPriority(pCheckList, 1);
+
+        if (pValidList->pairs.elements[0].pairPriority != maxpri)
+        {
+          return;
+        }
+        else
+        {
+          if (!pValidList->pairs.elements[0].nominatedPair)
+          {
+            return;
+          }
+        }
+      }
+      else
+      {
+        ICELIB_removeWaitingAndFrozen(pCheckList,
+                                      pValidList,
+                                      pTriggeredChecksFifo,
+                                      pCallbackLog);
+        ICELIB_ceaseRetransmissions(pCheckList, pValidList,
+                                    pTriggeredChecksFifo);
+      }
     }
     /* Once there is at least one nominated pair in the valid list for */
     /* every component of at least one media stream and the state of the */
@@ -4940,7 +5039,6 @@ ICELIB_updateCheckListStateConcluding(ICELIB_CHECKLIST*      pCheckList,
         if ( pValidList->pairs.elements[j].nominatedPair &&
              (pLocalCandidate->componentid == componentId) )
         {
-
           foundComp++;
           if (foundComp == numberOfComp)
           {
@@ -4953,16 +5051,6 @@ ICELIB_updateCheckListStateConcluding(ICELIB_CHECKLIST*      pCheckList,
       }
     }
   }
-}
-
-uint32_t
-ICELIB_getWeightTimeMultiplier(ICELIB_INSTANCE* pInstance)
-{
-  uint32_t timeMS;
-
-  timeMS = pInstance->tickCount * pInstance->iceConfiguration.tickIntervalMS;
-  /* Don't want to return a multiplier less than 1 */
-  return (timeMS / ICELIB_TIME_MULTIPLIER_INCREASE_MS) + 1;
 }
 
 
@@ -4989,12 +5077,21 @@ ICELIB_updatingStates(ICELIB_INSTANCE* pInstance)
 
   for (i = 0; i < pInstance->numberOfMediaStreams; ++i)
   {
+    if ( (pInstance->localIceMedia.mediaStream[i].numberOfCandidates == 0) ||
+         (pInstance->remoteIceMedia.mediaStream[i].numberOfCandidates == 0) )
+    {
+      /* Disabled medialine. Ignore */
+      continue;
+    }
+
+
     pCheckList           = &pInstance->streamControllers[ i].checkList;
     pValidList           = &pInstance->streamControllers[ i].validList;
     pTriggeredChecksFifo =
       &pInstance->streamControllers[ i].triggeredChecksFifo;
 
-    ICELIB_updateCheckListStateConcluding(pCheckList,
+    ICELIB_updateCheckListStateConcluding(pInstance,
+                                          pCheckList,
                                           pValidList,
                                           pTriggeredChecksFifo,
                                           pCallbackLog);
@@ -5034,22 +5131,49 @@ ICELIB_updatingStates(ICELIB_INSTANCE* pInstance)
     uint32_t timeMS = pInstance->tickCount *
                       pInstance->iceConfiguration.tickIntervalMS;
 
-    if (timeMS > ICELIB_FAIL_AFTER_MS /*5 sec*/)
+    if (timeMS > ICELIB_FAIL_AFTER_MS)
     {
       ICELIB_connectivityChecksComplete ConnectivityCheckComplete;
       ConnectivityCheckComplete =
-        pInstance->callbacks.callbackComplete.pICELIB_connectivityChecksComplete;
-      pInstance->iceState = ICELIB_FAILED;
-      ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logInfo,
-                 "ICE failed (Timeout)");
-      if (ConnectivityCheckComplete != NULL)
+        pInstance->callbacks.callbackComplete.
+        pICELIB_connectivityChecksComplete;
+
+      /* If aggressive and nominated pair exist, this is actually a sucsess */
+      /* Maybee check for partial failures..?? */
+      if ( pInstance->iceConfiguration.aggressiveNomination &&
+           (ICELIB_countNominatedPairsInValidList(pValidList) > 0) )
       {
-        ConnectivityCheckComplete(
-          pInstance->callbacks.callbackComplete.pConnectivityChecksCompleteUserData,
-          pInstance->localIceMedia.mediaStream[0].userValue1,
-          pInstance->iceControlling,
-          true);
+        pInstance->iceState = ICELIB_COMPLETED;
+        ICELIB_storeRemoteCandidates(pInstance);
+        ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logInfo,
+                   "ICE sucsess agressive (Timeout)");
+        if (ConnectivityCheckComplete != NULL)
+        {
+          ConnectivityCheckComplete(
+            pInstance->callbacks.callbackComplete.pConnectivityChecksCompleteUserData,
+            pInstance->localIceMedia.mediaStream[0].userValue1,
+            pInstance->iceControlling,
+            false);
+        }
+
       }
+      else
+      {
+
+        pInstance->iceState = ICELIB_FAILED;
+        ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logInfo,
+                   "ICE failed (Timeout)");
+        if (ConnectivityCheckComplete != NULL)
+        {
+          ConnectivityCheckComplete(
+            pInstance->callbacks.callbackComplete.pConnectivityChecksCompleteUserData,
+            pInstance->localIceMedia.mediaStream[0].userValue1,
+            pInstance->iceControlling,
+            true);
+        }
+      }
+
+
     }
   }
 }
@@ -5065,7 +5189,10 @@ ICE_concludeFullIfComplete(ICELIB_INSTANCE* pInstance)
   /*  */
   if (pInstance->iceConfiguration.aggressiveNomination)
   {
-    ICELIB_nominateAggressive(pInstance);
+    if (pInstance->iceControlling)
+    {
+      ICELIB_nominateAggressive(pInstance);
+    }
   }
   else
   {
@@ -5123,144 +5250,6 @@ ICELIB_resetAllStreamControllers(ICELIB_INSTANCE* pInstance)
   }
 }
 
-uint32_t
-ICELIB_getCandidateTypeWeight(ICE_CANDIDATE_TYPE type)
-{
-  switch (type)
-  {
-  case ICE_CAND_TYPE_NONE:
-    return 0;
-  case ICE_CAND_TYPE_HOST:
-    return ICELIB_HOST_WEIGHT;
-  case ICE_CAND_TYPE_SRFLX:
-    return ICELIB_SRFLX_WEIGHT;
-  case ICE_CAND_TYPE_RELAY:
-    return ICELIB_RELAY_WEIGHT;
-  case ICE_CAND_TYPE_PRFLX:
-    return ICELIB_PRFLX_WEIGHT;
-  }
-  return 0;
-}
-
-uint32_t
-ICELIB_calculateReadyWeight(ICE_CANDIDATE_TYPE localType,
-                            ICE_CANDIDATE_TYPE remoteType,
-                            uint32_t           timeMultiplier)
-{
-  uint32_t weight = 0;
-
-  weight += ICELIB_getCandidateTypeWeight(localType);
-  weight += ( 2 * ICELIB_getCandidateTypeWeight(remoteType) );
-
-  weight *= timeMultiplier;
-  return weight;
-}
-
-static uint32_t
-ICELIB_getBestWeight(ICELIB_VALIDLIST* pValidList,
-                     uint32_t          componentId,
-                     uint32_t          timeMultiplier)
-{
-  uint32_t i;
-  uint32_t weight = 0;
-
-  for (i = 0; i < pValidList->pairs.numberOfElements; i++)
-  {
-
-    if (componentId ==
-        pValidList->pairs.elements[i].pLocalCandidate->componentid)
-    {
-      uint32_t tmpWeight = ICELIB_calculateReadyWeight(
-        pValidList->pairs.elements[i].pLocalCandidate->type,
-        pValidList->pairs.elements[
-          i].pRemoteCandidate->type,
-        timeMultiplier);
-      if (tmpWeight > weight)
-      {
-        weight = tmpWeight;
-      }
-    }
-  }
-
-  return weight;
-}
-
-static uint32_t
-ICELIB_getBestScore(ICELIB_VALIDLIST* pValidList,
-                    uint32_t          componentId)
-{
-  return ICELIB_getBestWeight(pValidList, componentId, 1);
-}
-
-
-void
-ICELIB_updateValidPairReadyToNominateWeightingMediaStream(
-  ICELIB_CHECKLIST* pCheckList,
-  ICELIB_VALIDLIST* pValidList,
-  uint32_t          timeMultiplier)
-{
-  uint32_t weight       = 0;
-  uint32_t numberOfComp = pCheckList->componentList.numberOfComponents;
-  uint32_t i;
-
-  for (i = 0; i < numberOfComp; i++)
-  {
-    /* Get the one with highest path score in the list. */
-    if (weight == 0)
-    {
-      weight = ICELIB_getBestWeight(pValidList,
-                                    pCheckList->componentList.componentIds[i],
-                                    timeMultiplier);
-      /* Special case with one component only */
-      if (numberOfComp == 1)
-      {
-        pValidList->readyToNominateWeighting = weight;
-        pValidList->nominatedPathScore       = ICELIB_getBestScore(pValidList,
-                                                                   pCheckList->componentList.componentIds[
-                                                                     i]);
-        return;
-      }
-
-    }
-    else
-    {
-      uint32_t tmpWeight = ICELIB_getBestWeight(pValidList,
-                                                pCheckList->componentList.componentIds[
-                                                  i],
-                                                timeMultiplier);
-      if (tmpWeight == weight)
-      {
-        /* We have same for all components */
-        pValidList->readyToNominateWeighting = weight;
-        pValidList->nominatedPathScore       = ICELIB_getBestScore(pValidList,
-                                                                   pCheckList->componentList.componentIds[
-                                                                     i]);
-
-      }
-      else
-      {
-        pValidList->readyToNominateWeighting = 0;
-
-      }
-    }
-  }
-}
-
-void
-ICELIB_updateValidPairReadyToNominateWeighting(ICELIB_INSTANCE* pInstance)
-{
-  unsigned int i;
-  for (i = 0; i < pInstance->numberOfMediaStreams; i++)
-  {
-    ICELIB_updateValidPairReadyToNominateWeightingMediaStream(
-      &pInstance->streamControllers[i].checkList,
-      &pInstance->streamControllers[
-        i].validList,
-      ICELIB_getWeightTimeMultiplier(
-        pInstance) );
-  }
-
-}
 
 /* -----------------------------------------------------------------------------
  * */
@@ -5480,10 +5469,11 @@ ICELIB_doKeepAlive(ICELIB_INSTANCE* pInstance)
       {
         ICELIB_log(&pInstance->callbacks.callbackLog,
                    ICELIB_logDebug, "Sending KeepAlive");
-        SendKeepAlive(pInstance->callbacks.callbackKeepAlive.pUserDataKeepAlive,
-                      pInstance->localIceMedia.mediaStream[mediaIdx].userValue1,
-                      pInstance->localIceMedia.mediaStream[mediaIdx].userValue2,
-                      mediaIdx);
+        SendKeepAlive(
+          pInstance->callbacks.callbackKeepAlive.pUserDataKeepAlive,
+          pInstance->localIceMedia.mediaStream[mediaIdx].userValue1,
+          pInstance->localIceMedia.mediaStream[mediaIdx].userValue2,
+          mediaIdx);
       }
 
     }
@@ -5508,7 +5498,8 @@ ICELIB_ReStart(ICELIB_INSTANCE* pInstance)
     pInstance->keepAliveTickCount = 0;
     pInstance->tieBreaker         = ICELIB_makeTieBreaker();
     ICELIB_resetAllStreamControllers(pInstance);
-    memset( &pInstance->remoteIceMedia, 0, sizeof (pInstance->remoteIceMedia) );
+    memset( &pInstance->remoteIceMedia, 0,
+            sizeof (pInstance->remoteIceMedia) );
     pInstance->iceState = ICELIB_IDLE;
   }
 }
@@ -5523,7 +5514,6 @@ ICELIB_Tick(ICELIB_INSTANCE* pInstance)
     ICELIB_tickStreamController(pInstance);
     if (pInstance->iceState == ICELIB_RUNNING)
     {
-      ICELIB_updateValidPairReadyToNominateWeighting(pInstance);
       ICELIB_concludeICEProcessingIfComplete(pInstance);
       ICELIB_updatingStates(pInstance);
     }
@@ -5590,6 +5580,18 @@ ICELIB_setCallbackConnecitivityChecksComplete(
   pInstance->callbacks.callbackComplete.pConnectivityChecksCompleteUserData =
     userData;
   pInstance->callbacks.callbackComplete.pInstance = pInstance;
+}
+
+void
+ICELIB_setCallbackNominated(ICELIB_INSTANCE* pInstance,
+                            ICELIB_nominated pICELIB_nominated,
+                            void*            userData)
+{
+  pInstance->callbacks.callbackNominated.pICELIB_nominated =
+    pICELIB_nominated;
+  pInstance->callbacks.callbackNominated.pNominatedUserData =
+    userData;
+  pInstance->callbacks.callbackNominated.pInstance = pInstance;
 }
 
 void
@@ -5660,8 +5662,8 @@ ICELIB_getActiveRemoteCandidates(const ICELIB_INSTANCE* pInstance,
 
 
   if ( pInstance &&
-       (pInstance->streamControllers[mediaLineId].checkList.checkListState ==
-        ICELIB_CHECKLIST_COMPLETED) )
+       (pInstance->streamControllers[mediaLineId].checkList.checkListState !=
+        ICELIB_CHECKLIST_FAILED) )
   {
     return &pInstance->streamControllers[mediaLineId].remoteCandidates;
   }
@@ -5793,7 +5795,8 @@ ICELIB_getActiveCandidate(const ICELIB_INSTANCE* pInstance,
       }
     }
   }
-  /* We should look up the default candididate for the media stream and use that
+  /* We should look up the default candididate for the media stream and use
+   * that
    * */
   if ( pInstance &&
        (pInstance->localIceMedia.numberOfICEMediaLines > (uint) mediaLineId) )
@@ -6008,6 +6011,10 @@ ICELIB_pairDumpLog(const ICELIB_CALLBACK_LOG* pCallbackLog,
                        pPair->useCandidate);
     ICELIB_logVaString(pCallbackLog,
                        logLevel,
+                       "sentUseCandidateAlready=%d, ",
+                       pPair->sentUseCandidateAlready);
+    ICELIB_logVaString(pCallbackLog,
+                       logLevel,
                        "Triggered-Use-Cand=%d, ",
                        pPair->triggeredUseCandidate);
     ICELIB_logVaString(pCallbackLog,
@@ -6065,13 +6072,16 @@ ICELIB_checkListDumpLog(const ICELIB_CALLBACK_LOG* pCallbackLog,
                                                             ICE_MAX_UFRAG_PAIR_LENGTH,
                                                             pCheckList,
                                                             true) );
-  ICELIB_logVaString( pCallbackLog, logLevel,"Check list Local passwd: '%s'\n",
+  ICELIB_logVaString( pCallbackLog, logLevel,
+                      "Check list Local passwd: '%s'\n",
                       ICELIB_getCheckListLocalPasswd(pCheckList) );
-  ICELIB_logVaString( pCallbackLog, logLevel,"Check list Remote passwd: '%s'\n",
+  ICELIB_logVaString( pCallbackLog, logLevel,
+                      "Check list Remote passwd: '%s'\n",
                       ICELIB_getCheckListRemotePasswd(pCheckList) );
 
   ICELIB_logVaString( pCallbackLog, logLevel,"Check list state : '%s'\n",
-                      ICELIB_toString_CheckListState(pCheckList->checkListState) );
+                      ICELIB_toString_CheckListState(pCheckList->
+                                                     checkListState) );
 
   ICELIB_logVaString(pCallbackLog, logLevel, "List of component IDs: ");
   ICELIB_componentIdsDumpLog(pCallbackLog, logLevel,
@@ -6088,7 +6098,8 @@ ICELIB_checkListDumpLog(const ICELIB_CALLBACK_LOG* pCallbackLog,
                        logLevel,
                        "Pair[ %u] ====================================================\n",
                        i);
-    ICELIB_pairDumpLog(pCallbackLog, logLevel, &pCheckList->checkListPairs[ i]);
+    ICELIB_pairDumpLog(pCallbackLog, logLevel,
+                       &pCheckList->checkListPairs[ i]);
   }
 }
 
@@ -6132,7 +6143,8 @@ ICELIB_validListDumpLog(const ICELIB_CALLBACK_LOG* pCallbackLog,
 
   ICELIB_validListIteratorConstructor(&vlIterator, pValidList);
 
-  while ( ( pValidPair = pICELIB_validListIteratorNext(&vlIterator) ) != NULL )
+  while ( ( pValidPair = pICELIB_validListIteratorNext(&vlIterator) ) !=
+          NULL )
   {
     ICELIB_logVaString(pCallbackLog,
                        logLevel,
@@ -6349,7 +6361,8 @@ ICELIB_getLocalCandidateType(const ICELIB_INSTANCE* pInstance,
     return ICE_CAND_TYPE_NONE;
   }
 
-  return pInstance->localIceMedia.mediaStream[mediaIdx].candidate[candIdx].type;
+  return pInstance->localIceMedia.mediaStream[mediaIdx].candidate[candIdx].
+         type;
 
 
 }
@@ -6370,7 +6383,8 @@ ICELIB_getRemoteCandidateType(const ICELIB_INSTANCE* pInstance,
     return ICE_CAND_TYPE_NONE;
   }
 
-  return pInstance->remoteIceMedia.mediaStream[mediaIdx].candidate[candIdx].type;
+  return pInstance->remoteIceMedia.mediaStream[mediaIdx].candidate[candIdx].
+         type;
 
 
 }
@@ -6798,13 +6812,15 @@ ICELIB_getLocalRelayAddr(const ICELIB_INSTANCE* pInstance,
   if (mediaIdx <= pInstance->localIceMedia.numberOfICEMediaLines)
   {
     for (i = 0;
-         i < pInstance->localIceMedia.mediaStream[mediaIdx].numberOfCandidates;
+         i <
+         pInstance->localIceMedia.mediaStream[mediaIdx].numberOfCandidates;
          i++)
     {
       if (pInstance->localIceMedia.mediaStream[mediaIdx].candidate[i].type ==
           ICE_CAND_TYPE_RELAY)
       {
-        return (struct sockaddr*)&pInstance->localIceMedia.mediaStream[mediaIdx]
+        return (struct sockaddr*)&pInstance->localIceMedia.mediaStream[
+          mediaIdx]
                .candidate[i].connectionAddr;
       }
     }
@@ -6822,10 +6838,12 @@ ICELIB_getLocalRelayCandidate(const ICELIB_INSTANCE* pInstance,
   if (mediaIdx <= pInstance->localIceMedia.numberOfICEMediaLines)
   {
     for (i = 0;
-         i < pInstance->localIceMedia.mediaStream[mediaIdx].numberOfCandidates;
+         i <
+         pInstance->localIceMedia.mediaStream[mediaIdx].numberOfCandidates;
          i++)
     {
-      if ( (pInstance->localIceMedia.mediaStream[mediaIdx].candidate[i].type ==
+      if ( (pInstance->localIceMedia.mediaStream[mediaIdx].candidate[i].type
+            ==
             ICE_CAND_TYPE_RELAY) &&
            (pInstance->localIceMedia.mediaStream[mediaIdx].candidate[i].
             componentid == componentId) )
@@ -6857,7 +6875,8 @@ struct sockaddr const*
 ICELIB_getLocalRelayAddrFromHostAddr(const ICELIB_INSTANCE* pInstance,
                                      const struct sockaddr* hostAddr)
 {
-  /* TODO: Rewrite Not using MAX values (Use actual number of stred instead) */
+  /* TODO: Rewrite Not using MAX values (Use actual number of stred instead)
+   * */
   int i,j,k = 0;
 
   for (i = 0; i < ICE_MAX_MEDIALINES; i++)
@@ -6876,7 +6895,8 @@ ICELIB_getLocalRelayAddrFromHostAddr(const ICELIB_INSTANCE* pInstance,
         {
           if ( (pInstance->localIceMedia.mediaStream[i].candidate[k].type ==
                 ICE_CAND_TYPE_RELAY) &&
-               (pInstance->localIceMedia.mediaStream[i].candidate[k].componentid
+               (pInstance->localIceMedia.mediaStream[i].candidate[k].
+                componentid
                 == compId) )
           {
 

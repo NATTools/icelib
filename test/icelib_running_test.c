@@ -613,7 +613,7 @@ CTEST2(data, multiple_medialines)
 
   ASSERT_FALSE( ICELIB_Mangled(m_icelib) );
 
-  for (i = 0; i < 1000; i++)
+  for (i = 0; i < 15; i++)
   {
     ICELIB_Tick(m_icelib);
     if (m_connChkCB.gotCB)
@@ -695,7 +695,6 @@ CTEST2(data, medialines_local_inactive)
 
 }
 
-
 CTEST2(data, medialines_remote_inactive)
 {
   (void) data;
@@ -744,8 +743,6 @@ CTEST2(data, medialines_remote_inactive)
 
   ASSERT_TRUE( ICELIB_isIceComplete(m_icelib) );
   ASSERT_TRUE( m_icelib->iceState == ICELIB_COMPLETED);
-
-
 }
 
 
@@ -854,7 +851,8 @@ CTEST2(data, medialines_remote_last_inactive)
 
 }
 
-#if 0
+
+
 CTEST2(data, medialines_remote_first_inactive)
 {
   (void) data;
@@ -905,9 +903,9 @@ CTEST2(data, medialines_remote_first_inactive)
 
 
 }
-#endif
 
-#if 0
+
+
 CTEST2(data, medialines_both_mixed_inactive)
 {
   (void)data;
@@ -959,7 +957,8 @@ CTEST2(data, medialines_both_mixed_inactive)
 
 
 }
-#endif
+
+
 
 CTEST2(data, medialines_both_mixed_inactive_fail)
 {
@@ -1145,7 +1144,7 @@ CTEST2(data, controlled)
                                 NULL,
                                 1);
   ICELIB_Tick(m_icelib);
-  stunlib_createId(&stunId );
+  stunlib_createId(&stunId);
   sockaddr_initFromString( (struct sockaddr*)&srcAddr, m1_remoteHostRtcpAddr );
   sockaddr_initFromString( (struct sockaddr*)&dstAddr, "192.168.2.10:3459" );
 
@@ -1167,7 +1166,7 @@ CTEST2(data, controlled)
                                 2);
 
   /* Medialine: 2 */
-  stunlib_createId(&stunId );
+  stunlib_createId(&stunId);
   sockaddr_initFromString( (struct sockaddr*)&srcAddr, m2_remoteHostRtpAddr );
   sockaddr_initFromString( (struct sockaddr*)&dstAddr, "192.168.2.10:3460" );
   ICELIB_getCheckListRemoteUsernamePair(ufragPair,
@@ -1191,7 +1190,7 @@ CTEST2(data, controlled)
                                 NULL,
                                 1);
 
-  stunlib_createId(&stunId );
+  stunlib_createId(&stunId);
   sockaddr_initFromString( (struct sockaddr*)&srcAddr, m2_remoteHostRtcpAddr );
   sockaddr_initFromString( (struct sockaddr*)&dstAddr, "192.168.2.10:3461" );
 
@@ -1277,7 +1276,7 @@ CTEST2(data, controlled_inactive)
   }
   /* send some nominating messages.. */
   /* Medialine: 0 */
-  stunlib_createId(&stunId );
+  stunlib_createId(&stunId);
   sockaddr_initFromString( (struct sockaddr*)&srcAddr, m0_remoteHostRtpAddr );
   sockaddr_initFromString( (struct sockaddr*)&dstAddr, "192.168.2.10:3456" );
   ICELIB_getCheckListRemoteUsernamePair(ufragPair,
@@ -1301,7 +1300,7 @@ CTEST2(data, controlled_inactive)
                                 NULL,
                                 1);
   ICELIB_Tick(m_icelib);
-  stunlib_createId(&stunId );
+  stunlib_createId(&stunId);
   sockaddr_initFromString( (struct sockaddr*)&srcAddr, m0_remoteHostRtcpAddr );
   sockaddr_initFromString( (struct sockaddr*)&dstAddr, "192.168.2.10:3457" );
 
@@ -1324,7 +1323,7 @@ CTEST2(data, controlled_inactive)
 
   ICELIB_Tick(m_icelib);
   /* Medialine: 1 */
-  stunlib_createId(&stunId );
+  stunlib_createId(&stunId);
   sockaddr_initFromString( (struct sockaddr*)&srcAddr, m1_remoteHostRtpAddr );
   sockaddr_initFromString( (struct sockaddr*)&dstAddr, "192.168.2.10:3458" );
   ICELIB_getCheckListRemoteUsernamePair(ufragPair,
@@ -1349,7 +1348,7 @@ CTEST2(data, controlled_inactive)
                                 NULL,
                                 1);
   ICELIB_Tick(m_icelib);
-  stunlib_createId(&stunId );
+  stunlib_createId(&stunId);
   sockaddr_initFromString( (struct sockaddr*)&srcAddr, m1_remoteHostRtcpAddr );
   sockaddr_initFromString( (struct sockaddr*)&dstAddr, "192.168.2.10:3459" );
 
@@ -1371,7 +1370,7 @@ CTEST2(data, controlled_inactive)
                                 2);
 
   /* Medialine: 2 */
-  stunlib_createId(&stunId );
+  stunlib_createId(&stunId);
   sockaddr_initFromString( (struct sockaddr*)&srcAddr, m2_remoteHostRtpAddr );
   sockaddr_initFromString( (struct sockaddr*)&dstAddr, "192.168.2.10:3460" );
   ICELIB_getCheckListRemoteUsernamePair(ufragPair,
@@ -1395,7 +1394,7 @@ CTEST2(data, controlled_inactive)
                                 NULL,
                                 1);
 
-  stunlib_createId(&stunId );
+  stunlib_createId(&stunId);
   sockaddr_initFromString( (struct sockaddr*)&srcAddr, m2_remoteHostRtcpAddr );
   sockaddr_initFromString( (struct sockaddr*)&dstAddr, "192.168.2.10:3461" );
 

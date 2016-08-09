@@ -28,17 +28,6 @@
 #define ICELIB_REFLEX_TYPEREF   100
 #define ICELIB_RELAY_TYPEREF    0
 
-
-
-#define ICELIB_COMPLETE_WEIGHT              150
-/*Warning. No equal values are allowed. (Used to ensure that RTP and RTCP has
- * the same path)*/
-#define ICELIB_HOST_WEIGHT                   50
-#define ICELIB_SRFLX_WEIGHT                  25
-#define ICELIB_PRFLX_WEIGHT                  20
-#define ICELIB_RELAY_WEIGHT                  10
-#define ICELIB_TIME_MULTIPLIER_INCREASE_MS  250
-
 #define ICELIB_RTP_COMPONENT_ID 1
 #define ICELIB_RTCP_COMPONENT_ID 2
 

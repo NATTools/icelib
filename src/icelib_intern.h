@@ -475,7 +475,9 @@ ICELIB_processIncommingFull(ICELIB_INSTANCE*       pInstance,
                             uint16_t               componentId);
 
 bool
-ICELIB_isNominatingCriteriaMet(ICELIB_VALIDLIST* pValidList);
+ICELIB_isNominatingCriteriaMet(ICELIB_VALIDLIST* pValidList,
+                               ICELIB_CHECKLIST* pChecklist);
+
 bool
 ICELIB_isNominatingCriteriaMetForAllMediaStreams(ICELIB_INSTANCE* pInstance);
 
@@ -489,10 +491,9 @@ pICELIB_pickValidPairForNominationNormalMode(ICELIB_VALIDLIST* pValidList,
                                              uint32_t          componentId);
 
 ICELIB_LIST_PAIR*
-pICELIB_pickValidPairForNomination(ICELIB_INSTANCE*  pInstance,
-                                   ICELIB_VALIDLIST* pValidList,
-                                   ICELIB_CHECKLIST* pCheckList,
+pICELIB_pickValidPairForNomination(ICELIB_VALIDLIST* pValidList,
                                    uint32_t          componentId);
+
 
 void
 ICELIB_enqueueValidPair(ICELIB_TRIGGERED_FIFO* pTriggeredChecksFifo,
@@ -535,7 +536,8 @@ ICELIB_ceaseRetransmissions(ICELIB_CHECKLIST*      pCheckList,
                             ICELIB_TRIGGERED_FIFO* pTriggeredChecksFifo);
 
 void
-ICELIB_updateCheckListStateConcluding(ICELIB_CHECKLIST*      pCheckList,
+ICELIB_updateCheckListStateConcluding(ICELIB_INSTANCE*       pInstance,
+                                      ICELIB_CHECKLIST*      pCheckList,
                                       ICELIB_VALIDLIST*      pValidList,
                                       ICELIB_TRIGGERED_FIFO* pTriggeredChecksFifo,
                                       ICELIB_CALLBACK_LOG*   pCallbackLog);
@@ -555,14 +557,6 @@ ICELIB_resetAllStreamControllers(ICELIB_INSTANCE* pInstance);
 uint32_t
 ICELIB_getWeightTimeMultiplier(ICELIB_INSTANCE* pInstance);
 
-void
-ICELIB_updateValidPairReadyToNominateWeightingMediaStream(
-  ICELIB_CHECKLIST* pCheckList,
-  ICELIB_VALIDLIST* pValidList,
-  uint32_t          timeMultiplier);
-
-void
-ICELIB_updateValidPairReadyToNominateWeighting(ICELIB_INSTANCE* pInstance);
 
 void
 ICELIB_PasswordUpdate(ICELIB_INSTANCE* pInstance);
