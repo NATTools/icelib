@@ -27,6 +27,35 @@ ICELIBTYPES_ICE_CANDIDATE_TYPE_toString(const ICE_CANDIDATE_TYPE candidateType)
 }
 
 char const*
+ICELIBTYPES_ICE_TRANSPORT_PROTO_toString(const ICE_TRANSPORT t)
+{
+  switch (t)
+  {
+  case ICE_TRANS_NONE:
+    return "NONE";
+  case ICE_TRANS_UDP:
+    return "UDP";
+  case ICE_TRANS_TCPACT:
+  case ICE_TRANS_TCPPASS:
+    return "TCP";
+  }
+  return "UNKNOWN";
+}
+
+char const*
+ICELIBTYPES_ICE_TRANSPORT_toString(ICE_TRANSPORT t)
+{
+  switch (t)
+  {
+  case ICE_TRANS_NONE: return "none";
+  case ICE_TRANS_UDP: return "udp";
+  case ICE_TRANS_TCPACT: return "tcpact";
+  case ICE_TRANS_TCPPASS: return "tcppass";
+  }
+  return "UNKNOWN";
+}
+
+char const*
 ICELIBTYPES_ICE_CANDIDATE_Component_toString (uint32_t componentid)
 {
   if (componentid == ICELIB_RTP_COMPONENT_ID)
@@ -85,6 +114,8 @@ ICE_TRANSPORT_proto(ICE_TRANSPORT transport)
 {
   switch (transport)
   {
+  case ICE_TRANS_NONE:
+    return -1;
   case ICE_TRANS_UDP:
     return IPPROTO_UDP;
 

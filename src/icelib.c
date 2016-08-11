@@ -27,6 +27,7 @@ remoteLocalTransportMatch(ICE_TRANSPORT a,
 {
   switch (a)
   {
+  case ICE_TRANS_NONE:      return false;
   case ICE_TRANS_UDP:       return b == ICE_TRANS_UDP;
   case ICE_TRANS_TCPACT:    return b == ICE_TRANS_TCPPASS;
   case ICE_TRANS_TCPPASS:   return b == ICE_TRANS_TCPACT;
@@ -35,18 +36,7 @@ remoteLocalTransportMatch(ICE_TRANSPORT a,
   abort();
 }
 
-static char const*
-ICE_TRANSPORT_toString(ICE_TRANSPORT t)
-{
-  switch (t)
-  {
-  case ICE_TRANS_UDP: return "udp";
-  case ICE_TRANS_TCPACT: return "tcpact";
-  case ICE_TRANS_TCPPASS: return "tcppass";
-  }
 
-  abort();
-}
 
 typedef union {
   ICELIB_uint128_t ui128;
@@ -120,6 +110,7 @@ isPassiveTransport(ICE_TRANSPORT transport)
   case ICE_TRANS_TCPPASS:
     return true;
 
+  case ICE_TRANS_NONE:
   case ICE_TRANS_UDP:
   case ICE_TRANS_TCPACT:
     break;
@@ -627,6 +618,7 @@ ICELIB_calculatePriority(ICE_CANDIDATE_TYPE type,
     break;
 
   case ICE_TRANS_UDP:
+  case ICE_TRANS_NONE:
     break;
   }
 
@@ -655,6 +647,7 @@ compute_transport_foundation(ICE_TRANSPORT transport)
 {
   switch (transport)
   {
+  case ICE_TRANS_NONE: break;
   case ICE_TRANS_UDP: break;
   case ICE_TRANS_TCPACT: return 1;
   case ICE_TRANS_TCPPASS: return 2;
@@ -5941,7 +5934,7 @@ ICELIB_candidateDumpLog(const ICELIB_CALLBACK_LOG* pCallbackLog,
                         (struct sockaddr*)&candidate->connectionAddr);
   ICELIB_logVaString( pCallbackLog, logLevel, " Type: '%s' ", ICELIBTYPES_ICE_CANDIDATE_TYPE_toString(
                         candidate->type) );
-  ICELIB_logVaString( pCallbackLog, logLevel, "Trans: %s",    ICE_TRANSPORT_toString(
+  ICELIB_logVaString( pCallbackLog, logLevel, "Trans: %s",    ICELIBTYPES_ICE_TRANSPORT_toString(
                         candidate->transport) );
   ICELIB_logVaString( pCallbackLog,
                       logLevel,

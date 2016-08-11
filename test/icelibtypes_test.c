@@ -29,6 +29,34 @@ CTEST(icelibtypes, candidate_toString)
 
 }
 
+CTEST(icelibtypes, transport_toString)
+{
+  ASSERT_TRUE( 0 ==
+               strcmp(ICELIBTYPES_ICE_TRANSPORT_PROTO_toString(ICE_TRANS_NONE),
+                      "NONE") );
+  ASSERT_TRUE( 0 ==
+               strcmp(ICELIBTYPES_ICE_TRANSPORT_PROTO_toString(ICE_TRANS_UDP),
+                      "UDP") );
+  ASSERT_TRUE( 0 ==
+               strcmp(ICELIBTYPES_ICE_TRANSPORT_PROTO_toString(ICE_TRANS_TCPACT),
+                      "TCP") );
+  ASSERT_TRUE( 0 ==
+               strcmp(ICELIBTYPES_ICE_TRANSPORT_PROTO_toString(ICE_TRANS_TCPPASS),
+                      "TCP") );
+
+  ASSERT_TRUE( 0 ==
+               strcmp(ICELIBTYPES_ICE_TRANSPORT_toString(ICE_TRANS_NONE),
+                      "none") );
+  ASSERT_TRUE( 0 ==
+               strcmp(ICELIBTYPES_ICE_TRANSPORT_toString(ICE_TRANS_UDP),
+                      "udp") );
+  ASSERT_TRUE( 0 ==
+               strcmp(ICELIBTYPES_ICE_TRANSPORT_toString(ICE_TRANS_TCPACT),
+                      "tcpact") );
+  ASSERT_TRUE( 0 ==
+               strcmp(ICELIBTYPES_ICE_TRANSPORT_toString(ICE_TRANS_TCPPASS),
+                      "tcppass") );
+}
 
 
 CTEST(icelibtypes, iceMedia_empty)

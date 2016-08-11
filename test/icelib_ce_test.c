@@ -1709,6 +1709,7 @@ CTEST(icelib_ce, findCandidates)
   sockaddr_copy( (struct sockaddr*)&mediaStream.candidate[0].connectionAddr,
                  (struct sockaddr*)&addr1 );
 
+  mediaStream.candidate[0].transport = ICE_TRANS_UDP;
 
   ASSERT_FALSE( NULL == pICELIB_findCandidate(&mediaStream,
                                               IPPROTO_UDP,
