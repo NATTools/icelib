@@ -13,17 +13,17 @@ ICELIBTYPES_ICE_CANDIDATE_TYPE_toString(const ICE_CANDIDATE_TYPE candidateType)
   switch (candidateType)
   {
   case ICE_CAND_TYPE_NONE:
-    return "NONE";
+    return "none";
   case ICE_CAND_TYPE_HOST:
-    return "HOST";
+    return "host";
   case ICE_CAND_TYPE_SRFLX:
-    return "SRFLX";
+    return "srflx";
   case ICE_CAND_TYPE_RELAY:
-    return "RELAY";
+    return "relay";
   case ICE_CAND_TYPE_PRFLX:
-    return "PRFLX";
+    return "prflx";
   }
-  return "UNKNOWN";
+  return "unknown";
 }
 
 char const*

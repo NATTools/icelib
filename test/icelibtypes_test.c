@@ -8,24 +8,24 @@ CTEST(icelibtypes, candidate_toString)
 {
   ASSERT_TRUE( 0 ==
                strcmp(ICELIBTYPES_ICE_CANDIDATE_TYPE_toString(ICE_CAND_TYPE_NONE),
-                      "NONE") );
+                      "none") );
   ASSERT_TRUE( 0 ==
                strcmp(ICELIBTYPES_ICE_CANDIDATE_TYPE_toString(ICE_CAND_TYPE_HOST),
-                      "HOST") );
+                      "host") );
   ASSERT_TRUE( 0 ==
                strcmp(ICELIBTYPES_ICE_CANDIDATE_TYPE_toString(
                         ICE_CAND_TYPE_SRFLX),
-                      "SRFLX") );
+                      "srflx") );
   ASSERT_TRUE( 0 ==
                strcmp(ICELIBTYPES_ICE_CANDIDATE_TYPE_toString(
                         ICE_CAND_TYPE_RELAY),
-                      "RELAY") );
+                      "relay") );
   ASSERT_TRUE( 0 ==
                strcmp(ICELIBTYPES_ICE_CANDIDATE_TYPE_toString(
                         ICE_CAND_TYPE_PRFLX),
-                      "PRFLX") );
+                      "prflx") );
   ASSERT_TRUE( 0 ==
-               strcmp(ICELIBTYPES_ICE_CANDIDATE_TYPE_toString(24), "UNKNOWN") );
+               strcmp(ICELIBTYPES_ICE_CANDIDATE_TYPE_toString(24), "unknown") );
 
 }
 
