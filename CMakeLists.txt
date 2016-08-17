@@ -151,7 +151,7 @@ Include(ExternalProject)
 ExternalProject_Add(
    project_sockaddrutil
    GIT_REPOSITORY https://github.com/NATTools/sockaddrutil.git
-   CMAKE_ARGS -Doptimize=OFF -Duse_context=ON -Dbuild_docs=OFF -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+   CMAKE_ARGS -Doptimize=OFF -Dbuild_docs=OFF -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
    INSTALL_DIR "${dist_dir}"
    UPDATE_DISCONNECTED 1
 )
@@ -166,7 +166,7 @@ add_dependencies(sockaddrutil project_sockaddrutil)
 ExternalProject_Add(
    project_stunlib
    GIT_REPOSITORY https://github.com/NATTools/stunlib.git
-   CMAKE_ARGS -Doptimize=OFF -Duse_context=ON -Dbuild_docs=OFF -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+   CMAKE_ARGS -Doptimize=OFF -Dbuild_docs=OFF -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
    INSTALL_DIR "${dist_dir}"
    UPDATE_DISCONNECTED 1
 )
