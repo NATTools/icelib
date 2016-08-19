@@ -5133,26 +5133,31 @@ ICELIB_updatingStates(ICELIB_INSTANCE* pInstance)
 
       /* If aggressive and nominated pair exist, this is actually a sucsess */
       /* Maybee check for partial failures..?? */
-      if ( pInstance->iceConfiguration.aggressiveNomination &&
-           (ICELIB_countNominatedPairsInValidList(pValidList) > 0) )
+      if (pInstance->iceConfiguration.aggressiveNomination)
       {
-        pInstance->iceState = ICELIB_COMPLETED;
-        ICELIB_storeRemoteCandidates(pInstance);
-        ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logInfo,
-                   "ICE sucsess agressive (Timeout)");
-        if (ConnectivityCheckComplete != NULL)
-        {
-          ConnectivityCheckComplete(
-            pInstance->callbacks.callbackComplete.pConnectivityChecksCompleteUserData,
-            pInstance->localIceMedia.mediaStream[0].userValue1,
-            pInstance->iceControlling,
-            false);
-        }
 
+        if (ICELIB_countNominatedPairsInValidList(pValidList) > 0)
+        {
+          pCheckList->checkListState = ICELIB_CHECKLIST_COMPLETED;
+        }
+        else
+        {
+          pInstance->iceState = ICELIB_FAILED;
+          /* ICELIB_storeRemoteCandidates(pInstance); */
+          ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logInfo,
+                     "ICE failed agressive (Timeout)");
+          if (ConnectivityCheckComplete != NULL)
+          {
+            ConnectivityCheckComplete(
+              pInstance->callbacks.callbackComplete.pConnectivityChecksCompleteUserData,
+              pInstance->localIceMedia.mediaStream[0].userValue1,
+              pInstance->iceControlling,
+              true);
+          }
+        }
       }
       else
       {
-
         pInstance->iceState = ICELIB_FAILED;
         ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logInfo,
                    "ICE failed (Timeout)");

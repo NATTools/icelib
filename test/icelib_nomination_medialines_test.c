@@ -59,6 +59,7 @@ Complete(void*        pUserData,
   (void) userval1;
   (void) controlling;
   (void) failed;
+
   return 0;
 }
 
@@ -175,6 +176,7 @@ CTEST_SETUP(data)
   (void)data;
   struct sockaddr_storage m0_defaultAddr;
   struct sockaddr_storage m0_localHostRtp;
+  struct sockaddr_storage m1_localHostRtp;
 
   ICELIB_CONFIGURATION iceConfig;
 
@@ -189,6 +191,8 @@ CTEST_SETUP(data)
 
   sockaddr_initFromString( (struct sockaddr*)&m0_localHostRtp,
                            "192.168.2.10:56780" );
+  sockaddr_initFromString( (struct sockaddr*)&m1_localHostRtp,
+                           "192.168.2.10:56788" );
 
 
   iceConfig.tickIntervalMS       = 20;
@@ -228,6 +232,15 @@ CTEST_SETUP(data)
                            mediaIdx,
                            1,
                            (struct sockaddr*)&m0_localHostRtp,
+                           NULL,
+                           ICE_TRANS_UDP,
+                           ICE_CAND_TYPE_HOST,
+                           0xffff);
+  mediaIdx = ICELIB_addLocalMediaStream(m_icelib, 42, 43, ICE_CAND_TYPE_HOST);
+  ICELIB_addLocalCandidate(m_icelib,
+                           mediaIdx,
+                           1,
+                           (struct sockaddr*)&m1_localHostRtp,
                            NULL,
                            ICE_TRANS_UDP,
                            ICE_CAND_TYPE_HOST,
@@ -272,6 +285,44 @@ CTEST_SETUP(data)
                             33434,
                             ICE_TRANS_UDP,
                             ICE_CAND_TYPE_HOST);
+  /* Medialine: 1 */
+  sockaddr_initFromString( (struct sockaddr*)&m0_defaultAddr,
+                           "158.38.48.10:5004" );
+
+  ICELIB_addRemoteMediaStream(m_icelib, remoteUfrag, remotePasswd,
+                              (struct sockaddr*)&m0_defaultAddr);
+  ICELIB_addRemoteCandidate(m_icelib,
+                            1,
+                            "1",
+                            1,
+                            1,
+                            2130706431,
+                            "158.38.48.10",
+                            5004,
+                            ICE_TRANS_UDP,
+                            ICE_CAND_TYPE_HOST);
+
+  ICELIB_addRemoteCandidate(m_icelib,
+                            1,
+                            "1",
+                            1,
+                            1,
+                            2130705430,
+                            "158.38.48.10",
+                            3478,
+                            ICE_TRANS_UDP,
+                            ICE_CAND_TYPE_HOST);
+
+  ICELIB_addRemoteCandidate(m_icelib,
+                            1,
+                            "1",
+                            1,
+                            1,
+                            2130206431,
+                            "158.38.48.10",
+                            33434,
+                            ICE_TRANS_UDP,
+                            ICE_CAND_TYPE_HOST);
 }
 
 
@@ -299,96 +350,151 @@ CTEST2(data, multiple_host_addr)
 
   ASSERT_FALSE( ICELIB_Mangled(m_icelib) );
 
-  for (int i = 0; i < 15; i++)
+  for (int i = 0; i < 40; i++)
   {
     ICELIB_Tick(m_icelib);
 
   }
   /* All the chacks are sent.. Lets trigger some responses */
-  /* Let the lowest pri finish first.. */
-  ICELIB_incomingBindingResponse(m_icelib,
-                                 200,
-                                 m_connChkCB[2].transactionId,
-                                 m_connChkCB[2].destination,
-                                 m_connChkCB[2].source,
-                                 m_connChkCB[2].source);
-  ICELIB_Tick(m_icelib);
-  ICELIB_Tick(m_icelib);
+  for (uint32_t i = 0; i < num_checks; i++)
+  {
+    ICELIB_incomingBindingResponse(m_icelib,
+                                   200,
+                                   m_connChkCB[i].transactionId,
+                                   m_connChkCB[i].destination,
+                                   m_connChkCB[i].source,
+                                   m_connChkCB[i].source);
+    ICELIB_Tick(m_icelib);
+  }
 
-  ICELIB_incomingBindingResponse(m_icelib,
-                                 200,
-                                 m_nomChkCB[0].transactionId,
-                                 m_nomChkCB[0].destination,
-                                 m_nomChkCB[0].source,
-                                 m_nomChkCB[0].source);
-  ICELIB_Tick(m_icelib);
+  /* Wait for nominations.. */
+  for (uint32_t i = 0; i < 30; i++)
+  {
+    ICELIB_Tick(m_icelib);
+
+  }
+
+  for (uint32_t i = 0; i < num_nom; i++)
+  {
+    ICELIB_incomingBindingResponse(m_icelib,
+                                   200,
+                                   m_nomChkCB[i].transactionId,
+                                   m_nomChkCB[i].destination,
+                                   m_nomChkCB[i].source,
+                                   m_nomChkCB[i].source);
+
+
+    ICELIB_Tick(m_icelib);
+  }
   ICELIB_Tick(m_icelib);
 
   ASSERT_TRUE(sockaddr_ipPort(
                 (const struct sockaddr*)&m_nominationCB[0].local) == 56780);
   ASSERT_TRUE(sockaddr_ipPort(
-                (const struct sockaddr*)&m_nominationCB[0].remote) == 33434);
+                (const struct sockaddr*)&m_nominationCB[0].remote) == 5004);
 
-
-  /* So lets see what happens if a beetr pri pair shows up.. */
-  ICELIB_incomingBindingResponse(m_icelib,
-                                 200,
-                                 m_connChkCB[1].transactionId,
-                                 m_connChkCB[1].destination,
-                                 m_connChkCB[1].source,
-                                 m_connChkCB[1].source);
-
-  ICELIB_Tick(m_icelib);
-  ICELIB_Tick(m_icelib);
-
-  ICELIB_incomingBindingResponse(m_icelib,
-                                 200,
-                                 m_nomChkCB[1].transactionId,
-                                 m_nomChkCB[1].destination,
-                                 m_nomChkCB[1].source,
-                                 m_nomChkCB[1].source);
-  ICELIB_Tick(m_icelib);
-  ICELIB_Tick(m_icelib);
   ASSERT_TRUE(sockaddr_ipPort(
-                (const struct sockaddr*)&m_nominationCB[1].local) == 56780);
+                (const struct sockaddr*)&m_nominationCB[1].local) == 56788);
   ASSERT_TRUE(sockaddr_ipPort(
-                (const struct sockaddr*)&m_nominationCB[1].remote) == 3478);
+                (const struct sockaddr*)&m_nominationCB[1].remote) == 5004);
 
-  ICELIB_incomingBindingResponse(m_icelib,
-                                 200,
-                                 m_connChkCB[0].transactionId,
-                                 m_connChkCB[0].destination,
-                                 m_connChkCB[0].source,
-                                 m_connChkCB[0].source);
-
-  ICELIB_Tick(m_icelib);
-  ICELIB_Tick(m_icelib);
-  ICELIB_incomingBindingResponse(m_icelib,
-                                 200,
-                                 m_nomChkCB[2].transactionId,
-                                 m_nomChkCB[2].destination,
-                                 m_nomChkCB[2].source,
-                                 m_nomChkCB[2].source);
-
-  ICELIB_Tick(m_icelib);
-  ICELIB_Tick(m_icelib);
-
-  ASSERT_TRUE( sockaddr_ipPort(
-                 (const struct sockaddr*)&m_nominationCB[2].local) == 56780);
-  ASSERT_TRUE( sockaddr_ipPort(
-                 (const struct sockaddr*)&m_nominationCB[2].remote) == 5004);
 
   ASSERT_TRUE( ICELIB_isIceComplete(m_icelib) );
 
   ASSERT_TRUE( m_icelib->iceState == ICELIB_COMPLETED);
 }
 
-CTEST2(data, multiple_host_addr_missing)
+
+CTEST2(data, multiple_host_addr_medialine_fail)
 {
   (void) data;
   memset(&m_connChkCB,    0, sizeof(m_ConncheckCB) * 50);
   memset(&m_nomChkCB,     0, sizeof(m_ConncheckCB) * 50);
   memset(&m_nominationCB, 0, sizeof(m_NominationCB) * 50);
+
+
+  ASSERT_TRUE( ICELIB_Start(m_icelib, true) );
+
+  ASSERT_TRUE( ICELIB_isRunning(m_icelib) );
+
+  ASSERT_FALSE( ICELIB_Mangled(m_icelib) );
+
+  for (int i = 0; i < 40; i++)
+  {
+    ICELIB_Tick(m_icelib);
+
+  }
+  /* All the chacks are sent.. Lets trigger some responses */
+  for (uint32_t i = 0; i < num_checks; i++)
+  {
+
+    if (m_connChkCB[i].userValue2 == 43)
+    {
+      /* This is medialine 2.. Ignore.. */
+    }
+    else
+    {
+      ICELIB_incomingBindingResponse(m_icelib,
+                                     200,
+                                     m_connChkCB[i].transactionId,
+                                     m_connChkCB[i].destination,
+                                     m_connChkCB[i].source,
+                                     m_connChkCB[i].source);
+      ICELIB_Tick(m_icelib);
+    }
+  }
+
+  /* Wait for nominations.. */
+  for (uint32_t i = 0; i < 30; i++)
+  {
+    ICELIB_Tick(m_icelib);
+
+  }
+
+  for (uint32_t i = 0; i < num_nom; i++)
+  {
+    ICELIB_incomingBindingResponse(m_icelib,
+                                   200,
+                                   m_nomChkCB[i].transactionId,
+                                   m_nomChkCB[i].destination,
+                                   m_nomChkCB[i].source,
+                                   m_nomChkCB[i].source);
+
+
+    ICELIB_Tick(m_icelib);
+  }
+  ICELIB_Tick(m_icelib);
+
+  for (uint32_t i = 0; i < 2000; i++)
+  {
+    ICELIB_Tick(m_icelib);
+
+  }
+
+  ASSERT_TRUE(sockaddr_ipPort(
+                (const struct sockaddr*)&m_nominationCB[0].local) == 56780);
+  ASSERT_TRUE(sockaddr_ipPort(
+                (const struct sockaddr*)&m_nominationCB[0].remote) == 5004);
+
+  ASSERT_FALSE(sockaddr_ipPort(
+                 (const struct sockaddr*)&m_nominationCB[1].local) == 56788);
+  ASSERT_FALSE(sockaddr_ipPort(
+                 (const struct sockaddr*)&m_nominationCB[1].remote) == 5004);
+
+
+  ASSERT_FALSE( ICELIB_isIceComplete(m_icelib) );
+
+  ASSERT_TRUE(m_icelib->iceState == ICELIB_FAILED);
+}
+
+
+#if 0
+CTEST2(data, multiple_host_addr_missing)
+{
+  (void) data;
+  memset( &m_connChkCB,    0, sizeof(m_ConncheckCB) );
+  memset( &m_nomChkCB,     0, sizeof(m_ConncheckCB) );
+  memset( &m_nominationCB, 0, sizeof(m_NominationCB) );
 
   ASSERT_TRUE( ICELIB_Start(m_icelib, true) );
 
@@ -468,9 +574,9 @@ CTEST2(data, multiple_host_addr_missing)
 CTEST2(data, ice_failure)
 {
   (void) data;
-  memset(&m_connChkCB,    0, sizeof(m_ConncheckCB) * 50);
-  memset(&m_nomChkCB,     0, sizeof(m_ConncheckCB) * 50);
-  memset(&m_nominationCB, 0, sizeof(m_NominationCB) * 50);
+  memset( &m_connChkCB,    0, sizeof(m_ConncheckCB) );
+  memset( &m_nomChkCB,     0, sizeof(m_ConncheckCB) );
+  memset( &m_nominationCB, 0, sizeof(m_NominationCB) );
 
   ASSERT_TRUE( ICELIB_Start(m_icelib, true) );
 
@@ -486,4 +592,6 @@ CTEST2(data, ice_failure)
 
   ASSERT_FALSE( ICELIB_isIceComplete(m_icelib) );
   ASSERT_TRUE(m_icelib->iceState == ICELIB_FAILED);
+
 }
+#endif
