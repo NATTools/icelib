@@ -39,6 +39,7 @@ typedef ICELIB_Result (* ICELIB_outgoingBindingRequest)(void*
                                                         pUserData,
                                                         int
                                                         proto,
+                                                        int socket,
                                                         const struct sockaddr*
                                                         destination,
                                                         const struct sockaddr*
@@ -508,6 +509,7 @@ int32_t
 ICELIB_addLocalCandidate(ICELIB_INSTANCE*       pInstance,
                          uint32_t               mediaIdx,
                          uint32_t               componentId,
+                         int                    socket,
                          const struct sockaddr* connectionAddr,
                          const struct sockaddr* relAddr,
                          ICE_TRANSPORT          transport,

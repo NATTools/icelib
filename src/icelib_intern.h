@@ -122,6 +122,7 @@ ICELIB_EliminateRedundantCandidates(ICELIB_INSTANCE* pInstance);
 void
 ICELIB_fillLocalCandidate(ICE_CANDIDATE*         cand,
                           uint32_t               componentId,
+                          int                    socket,
                           const struct sockaddr* connectionAddr,
                           const struct sockaddr* relAddr,
                           ICE_TRANSPORT          transport,

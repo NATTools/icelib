@@ -1933,6 +1933,7 @@ ICELIB_scheduleCheck(ICELIB_INSTANCE*  pInstance,
     }
     BindingRequest(pInstance->callbacks.callbackRequest.pBindingRequestUserData,
                    ICE_TRANSPORT_proto(pPair->pLocalCandidate->transport),
+                   pPair->pLocalCandidate->socket,
                    (struct sockaddr*)&pPair->pRemoteCandidate->connectionAddr,
                    (struct sockaddr*)&pPair->pLocalCandidate->connectionAddr,
                    pPair->pLocalCandidate->userValue1,
@@ -6455,6 +6456,7 @@ ICELIB_fillRemoteCandidate(ICE_CANDIDATE*     cand,
 void
 ICELIB_fillLocalCandidate(ICE_CANDIDATE*         cand,
                           uint32_t               componentId,
+                          int                    socket,
                           const struct sockaddr* connectionAddr,
                           const struct sockaddr* relAddr,
                           ICE_TRANSPORT          transport,
@@ -6468,6 +6470,7 @@ ICELIB_fillLocalCandidate(ICE_CANDIDATE*         cand,
 
   sockaddr_copy( (struct sockaddr*)&cand->connectionAddr,
                  (struct sockaddr*)connectionAddr );
+  cand->socket      = socket;
   cand->type        = candType;
   cand->componentid = componentId;
   cand->transport   = transport;
@@ -6495,6 +6498,7 @@ int32_t
 ICELIB_addLocalCandidate(ICELIB_INSTANCE*       pInstance,
                          uint32_t               mediaIdx,
                          uint32_t               componentId,
+                         int                    socket,
                          const struct sockaddr* connectionAddr,
                          const struct sockaddr* relAddr,
                          ICE_TRANSPORT          transport,
@@ -6528,6 +6532,7 @@ ICELIB_addLocalCandidate(ICELIB_INSTANCE*       pInstance,
 
   ICELIB_fillLocalCandidate(cand,
                             componentId,
+                            socket,
                             connectionAddr,
                             relAddr,
                             transport,
