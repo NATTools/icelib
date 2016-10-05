@@ -81,6 +81,8 @@ typedef ICELIB_Result (* ICELIB_outgoingBindingResponse)(void*
                                                          uint32_t
                                                          componentId,
                                                          int
+                                                         sockfd,
+                                                         int
                                                          proto,
                                                          const struct sockaddr*
                                                          source,
@@ -390,6 +392,7 @@ ICELIB_incomingBindingRequest(ICELIB_INSTANCE*       pInstance,
                               bool                   iceControlled,
                               uint64_t               tieBreaker,
                               StunMsgId              transactionId,
+                              int                    sockfd,
                               int                    proto,
                               const struct sockaddr* source,
                               const struct sockaddr* destination,

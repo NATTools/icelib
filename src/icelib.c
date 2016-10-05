@@ -3714,6 +3714,7 @@ ICELIB_incomingTimeout(ICELIB_INSTANCE* pInstance,
 
 void
 ICELIB_sendBindingResponse(ICELIB_INSTANCE*       pInstance,
+                           int sockfd,
                            int                    proto,
                            const struct sockaddr* source,
                            const struct sockaddr* destination,
@@ -3738,6 +3739,7 @@ ICELIB_sendBindingResponse(ICELIB_INSTANCE*       pInstance,
       userValue1,
       userValue2,
       componentId,
+      sockfd,
       proto,
       source,
       destination,
@@ -3753,6 +3755,7 @@ ICELIB_sendBindingResponse(ICELIB_INSTANCE*       pInstance,
 void
 ICELIB_processSuccessRequest(ICELIB_INSTANCE*        pInstance,
                              StunMsgId               transactionId,
+                             int                     sockfd,
                              int                     proto,
                              const struct sockaddr*  source,
                              const struct sockaddr*  destination,
@@ -4056,6 +4059,7 @@ beach:
   if (sendBindResponse)
   {
     ICELIB_sendBindingResponse(pInstance, /* pInstance */
+                               sockfd,
                                proto,
                                destination,            /* source */
                                source,                 /* destination */
@@ -4154,6 +4158,7 @@ ICELIB_processIncommingFull(ICELIB_INSTANCE*       pInstance,
                             bool                   iceControlled,
                             uint64_t               tieBreaker,
                             StunMsgId              transactionId,
+                            int                    sockfd,
                             int                    proto,
                             const struct sockaddr* source,
                             const struct sockaddr* destination,
@@ -4228,6 +4233,7 @@ ICELIB_processIncommingFull(ICELIB_INSTANCE*       pInstance,
         list_pwd = ICELIB_getCheckListLocalPasswd(pCheckList);
 
         ICELIB_sendBindingResponse(pInstance, /* pInstance */
+                                   sockfd,
                                    proto,
                                    destination,              /* source */
                                    source,                   /* destination */
@@ -4274,6 +4280,7 @@ ICELIB_processIncommingFull(ICELIB_INSTANCE*       pInstance,
       if (pInstance->tieBreaker >= tieBreaker)
       {
         ICELIB_sendBindingResponse( pInstance,
+                                    sockfd,
                                     proto,
                                     destination,
                                     source,
@@ -4320,6 +4327,7 @@ ICELIB_processIncommingFull(ICELIB_INSTANCE*       pInstance,
       else
       {
         ICELIB_sendBindingResponse( pInstance,
+                                    sockfd,
                                     proto,
                                     destination,
                                     source,
@@ -4348,6 +4356,7 @@ ICELIB_processIncommingFull(ICELIB_INSTANCE*       pInstance,
                 "Received UfragPair was: '%s'",
                 pUfragPair);
     ICELIB_sendBindingResponse( pInstance,
+                                sockfd,
                                 proto,
                                 destination,
                                 source,
@@ -4368,6 +4377,7 @@ ICELIB_processIncommingFull(ICELIB_INSTANCE*       pInstance,
 
   ICELIB_processSuccessRequest(pInstance,
                                transactionId,
+                               sockfd,
                                proto,
                                source,
                                destination,
@@ -4402,6 +4412,7 @@ ICELIB_incomingBindingRequest(ICELIB_INSTANCE*       pInstance,
                               bool                   iceControlled,
                               uint64_t               tieBreaker,
                               StunMsgId              transactionId,
+                              int                    sockfd,
                               int                    proto,
                               const struct sockaddr* source,
                               const struct sockaddr* destination,
@@ -4453,6 +4464,7 @@ ICELIB_incomingBindingRequest(ICELIB_INSTANCE*       pInstance,
                                 iceControlled,
                                 tieBreaker,
                                 transactionId,
+                                sockfd,
                                 proto,
                                 source,
                                 destination,

@@ -1490,6 +1490,7 @@ CTEST2(data, conncheck_withIncomming)
                                 true,
                                 45678,
                                 stunId,
+                                7,
                                 IPPROTO_UDP,
                                 (struct sockaddr*)&srcAddr,
                                 (const struct sockaddr*)&dstAddr,
