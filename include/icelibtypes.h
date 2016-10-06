@@ -179,6 +179,7 @@ typedef struct {
   char                    foundation[ ICE_MAX_FOUNDATION_LENGTH];
   uint32_t                componentid;
   uint32_t                priority;
+  int                     socket;
   struct sockaddr_storage connectionAddr;
   ICE_TRANSPORT           transport;
   ICE_CANDIDATE_TYPE      type;

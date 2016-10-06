@@ -26,6 +26,7 @@
 ICELIB_Result
 ICELIB_TEST_sendConnectivityCheck(void*                  pUserData,
                                   int                    proto,
+                                  int                    socket,
                                   const struct sockaddr* destination,
                                   const struct sockaddr* source,
                                   uint32_t               userValue1,
@@ -99,6 +100,7 @@ static struct ConncheckCB connChkCB;
 ICELIB_Result
 ICELIB_TEST_sendConnectivityCheck(void*                  pUserData,
                                   int                    proto,
+                                  int socket,
                                   const struct sockaddr* destination,
                                   const struct sockaddr* source,
                                   uint32_t               userValue1,
@@ -116,6 +118,7 @@ ICELIB_TEST_sendConnectivityCheck(void*                  pUserData,
 {
   (void) pUserData;
   (void) proto;
+  (void) socket;
 
   connChkCB.gotCB          = true;
   connChkCB.destination    = destination;
@@ -201,6 +204,7 @@ icelib_setup ()
   ICELIB_addLocalCandidate(icelib,
                            0,
                            1,
+                           5,
                            (struct sockaddr*)&localHostRtp,
                            NULL,
                            ICE_TRANS_UDP,
@@ -209,6 +213,7 @@ icelib_setup ()
   ICELIB_addLocalCandidate(icelib,
                            0,
                            2,
+                           5,
                            (struct sockaddr*)&localHostRtcp,
                            NULL,
                            ICE_TRANS_UDP,
@@ -220,6 +225,7 @@ icelib_setup ()
   ICELIB_addLocalCandidate(icelib,
                            0,
                            1,
+                           5,
                            (struct sockaddr*)&localRflxRtp,
                            (struct sockaddr*)&localHostRtp,
                            ICE_TRANS_UDP,
@@ -228,6 +234,7 @@ icelib_setup ()
   ICELIB_addLocalCandidate(icelib,
                            0,
                            2,
+                           5,
                            (struct sockaddr*)&localRflxRtcp,
                            (struct sockaddr*)&localHostRtp,
                            ICE_TRANS_UDP,
@@ -238,6 +245,7 @@ icelib_setup ()
   ICELIB_addLocalCandidate(icelib,
                            0,
                            1,
+                           5,
                            (struct sockaddr*)&localRelayRtp,
                            (struct sockaddr*)&localRflxRtp,
                            ICE_TRANS_UDP,
@@ -246,6 +254,7 @@ icelib_setup ()
   ICELIB_addLocalCandidate(icelib,
                            0,
                            2,
+                           5,
                            (struct sockaddr*)&localRelayRtcp,
                            (struct sockaddr*)&localRflxRtcp,
                            ICE_TRANS_UDP,
@@ -1455,6 +1464,7 @@ CTEST(icelib_ce, conncheck_withIncomming)
                                 true,
                                 45678,
                                 stunId,
+                                7,
                                 IPPROTO_UDP,
                                 (struct sockaddr*)&srcAddr,
                                 (const struct sockaddr*)&dstAddr,
@@ -1941,6 +1951,7 @@ CTEST(icelib_ce, formPairs_IPv4)
   /* Local */
   ICELIB_fillLocalCandidate(cand,
                             1,
+                            5,
                             (struct sockaddr*)&localHost,
                             NULL,
                             ICE_TRANS_UDP,
@@ -1951,6 +1962,7 @@ CTEST(icelib_ce, formPairs_IPv4)
 
   ICELIB_fillLocalCandidate(cand,
                             1,
+                            5,
                             (struct sockaddr*)&localRelay,
                             NULL,
                             ICE_TRANS_UDP,
@@ -2082,6 +2094,7 @@ CTEST(icelib_ce, formPairs_IPv6)
   /* Local */
   ICELIB_fillLocalCandidate(cand,
                             1,
+                            5,
                             (struct sockaddr*)&localHost_6,
                             NULL,
                             ICE_TRANS_UDP,
@@ -2092,6 +2105,7 @@ CTEST(icelib_ce, formPairs_IPv6)
 
   ICELIB_fillLocalCandidate(cand,
                             1,
+                            5,
                             (struct sockaddr*)&localRelay_6,
                             NULL,
                             ICE_TRANS_UDP,

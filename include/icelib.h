@@ -39,6 +39,7 @@ typedef ICELIB_Result (* ICELIB_outgoingBindingRequest)(void*
                                                         pUserData,
                                                         int
                                                         proto,
+                                                        int socket,
                                                         const struct sockaddr*
                                                         destination,
                                                         const struct sockaddr*
@@ -79,6 +80,8 @@ typedef ICELIB_Result (* ICELIB_outgoingBindingResponse)(void*
                                                          userValue2,
                                                          uint32_t
                                                          componentId,
+                                                         int
+                                                         sockfd,
                                                          int
                                                          proto,
                                                          const struct sockaddr*
@@ -389,6 +392,7 @@ ICELIB_incomingBindingRequest(ICELIB_INSTANCE*       pInstance,
                               bool                   iceControlled,
                               uint64_t               tieBreaker,
                               StunMsgId              transactionId,
+                              int                    sockfd,
                               int                    proto,
                               const struct sockaddr* source,
                               const struct sockaddr* destination,
@@ -508,6 +512,7 @@ int32_t
 ICELIB_addLocalCandidate(ICELIB_INSTANCE*       pInstance,
                          uint32_t               mediaIdx,
                          uint32_t               componentId,
+                         int                    socket,
                          const struct sockaddr* connectionAddr,
                          const struct sockaddr* relAddr,
                          ICE_TRANSPORT          transport,

@@ -95,6 +95,7 @@ Nominated(void*                  pUserData,
 ICELIB_Result
 sendConnectivityCheck(void*                  pUserData,
                       int                    proto,
+                      int                    socket,
                       const struct sockaddr* destination,
                       const struct sockaddr* source,
                       uint32_t               userValue1,
@@ -112,6 +113,7 @@ sendConnectivityCheck(void*                  pUserData,
 {
   (void)pUserData;
   (void) proto;
+  (void) socket;
   if (useCandidate)
   {
     m_nomChkCB[num_nom].gotCB       = true;
@@ -231,6 +233,7 @@ CTEST_SETUP(data)
   ICELIB_addLocalCandidate(m_icelib,
                            mediaIdx,
                            1,
+                           5,
                            (struct sockaddr*)&m0_localHostRtp,
                            NULL,
                            ICE_TRANS_UDP,
@@ -240,6 +243,7 @@ CTEST_SETUP(data)
   ICELIB_addLocalCandidate(m_icelib,
                            mediaIdx,
                            1,
+                           5,
                            (struct sockaddr*)&m1_localHostRtp,
                            NULL,
                            ICE_TRANS_UDP,
