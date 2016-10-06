@@ -17,7 +17,7 @@ extern "C" {
 
 #define ICELIB_log1(pCallbacks, level, message, arg1) ICELIB_log_(pCallbacks, \
                                                                   level, \
-                                                                  __FUNCTION__, \
+                                                                  __func__, \
                                                                   __FILE__, \
                                                                   __LINE__, \
                                                                   message, \
@@ -25,7 +25,7 @@ extern "C" {
 
 #define ICELIB_log(pCallbacks, level, message) ICELIB_log_(pCallbacks,  \
                                                            level,       \
-                                                           __FUNCTION__, \
+                                                           __func__, \
                                                            __FILE__,    \
                                                            __LINE__,    \
                                                            message)

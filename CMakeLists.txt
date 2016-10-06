@@ -69,9 +69,9 @@ include_directories ( ${CMAKE_CURRENT_BINARY_DIR} )
 if ( CMAKE_C_COMPILER_ID STREQUAL "GNU" OR
      CMAKE_C_COMPILER_ID MATCHES "Clang" )
   message ( STATUS "adding GCC/Clang options ")
-  add_definitions ( -std=gnu99 -Wall -Wextra -pedantic )
+  add_definitions ( -std=gnu11 -Wall -Wextra -pedantic )
   ## disable VLA "is a GNU extension" warning
-  add_definitions ( -Wno-gnu-zero-variadic-macro-arguments )
+  ##add_definitions ( -Wno-gnu-zero-variadic-macro-arguments )
   if ( fatal_warnings )
     add_definitions ( -Werror )
   endif ()
