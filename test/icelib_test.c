@@ -562,6 +562,7 @@ CTEST(icelib, create_foundation)
   ICELIB_createFoundation(tmp,
                           ICE_CAND_TYPE_HOST,
                           ICE_TRANS_UDP,
+                          0,
                           ICE_MAX_FOUNDATION_LENGTH);
 
   ASSERT_TRUE( (strlen(tmp) + 1) == ICELIB_FOUNDATION_LENGTH );
@@ -572,6 +573,7 @@ CTEST(icelib, create_foundation)
   ICELIB_createFoundation(tmp,
                           ICE_CAND_TYPE_SRFLX,
                           ICE_TRANS_UDP,
+                          0,
                           ICE_MAX_FOUNDATION_LENGTH);
 
   ASSERT_TRUE( (strlen(tmp) + 1) == ICELIB_FOUNDATION_LENGTH );
@@ -582,6 +584,7 @@ CTEST(icelib, create_foundation)
   ICELIB_createFoundation(tmp,
                           ICE_CAND_TYPE_RELAY,
                           ICE_TRANS_UDP,
+                          0,
                           ICE_MAX_FOUNDATION_LENGTH);
 
   ASSERT_TRUE( (strlen(tmp) + 1) == ICELIB_FOUNDATION_LENGTH );
@@ -592,6 +595,7 @@ CTEST(icelib, create_foundation)
   ICELIB_createFoundation(tmp,
                           ICE_CAND_TYPE_PRFLX,
                           ICE_TRANS_UDP,
+                          0,
                           ICE_MAX_FOUNDATION_LENGTH);
 
   ASSERT_TRUE( (strlen(tmp) + 1) == ICELIB_FOUNDATION_LENGTH );
@@ -602,6 +606,7 @@ CTEST(icelib, create_foundation)
   ICELIB_createFoundation(tmp,
                           ICE_CAND_TYPE_HOST + 999,
                           ICE_TRANS_UDP,
+                          0,
                           ICE_MAX_FOUNDATION_LENGTH);
 
   ASSERT_TRUE( strlen(tmp) == strlen("unknowntype") );

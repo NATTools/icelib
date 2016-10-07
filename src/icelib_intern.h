@@ -372,6 +372,7 @@ ICELIB_makePeerLocalReflexiveCandidate(ICE_CANDIDATE*         pPeerCandidate,
                                        ICELIB_CALLBACK_LOG*   pCallbackLog,
                                        const struct sockaddr* pMappedAddress,
                                        ICE_TRANSPORT          transport,
+                                       int                    socketfd,
                                        uint16_t               componentId);
 
 void
@@ -594,6 +595,7 @@ void
 ICELIB_createFoundation(char*              dst,
                         ICE_CANDIDATE_TYPE type,
                         ICE_TRANSPORT      transport,
+                        int                socketfd,
                         size_t             maxlength);
 
 void

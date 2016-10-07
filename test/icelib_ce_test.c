@@ -511,28 +511,28 @@ CTEST(icelib_ce, create_foundation)
 
   memset( tmp, '#', sizeof(tmp) );
 
-  ICELIB_createFoundation(tmp, ICE_CAND_TYPE_HOST, ICE_TRANS_UDP, sizeof tmp);
+  ICELIB_createFoundation(tmp, ICE_CAND_TYPE_HOST, ICE_TRANS_UDP, 0, sizeof tmp);
 
   ASSERT_TRUE( (strlen(tmp) + 1) == ICELIB_FOUNDATION_LENGTH );
   ASSERT_TRUE( strcmp(tmp, FOUNDATION_HOST) == 0);
 
   memset( tmp, '#', sizeof(tmp) );
 
-  ICELIB_createFoundation(tmp, ICE_CAND_TYPE_SRFLX, ICE_TRANS_UDP, sizeof tmp);
+  ICELIB_createFoundation(tmp, ICE_CAND_TYPE_SRFLX, ICE_TRANS_UDP, 0, sizeof tmp);
 
   ASSERT_TRUE( (strlen(tmp) + 1) == ICELIB_FOUNDATION_LENGTH );
   ASSERT_TRUE( strcmp(tmp, FOUNDATION_SRFLX) == 0);
 
   memset( tmp, '#', sizeof(tmp) );
 
-  ICELIB_createFoundation(tmp, ICE_CAND_TYPE_RELAY, ICE_TRANS_UDP, sizeof tmp);
+  ICELIB_createFoundation(tmp, ICE_CAND_TYPE_RELAY, ICE_TRANS_UDP, 0, sizeof tmp);
 
   ASSERT_TRUE( (strlen(tmp) + 1) == ICELIB_FOUNDATION_LENGTH );
   ASSERT_TRUE( strcmp(tmp, FOUNDATION_RELAY) == 0);
 
   memset( tmp, '#', sizeof(tmp) );
 
-  ICELIB_createFoundation(tmp, ICE_CAND_TYPE_PRFLX, ICE_TRANS_UDP, sizeof tmp);
+  ICELIB_createFoundation(tmp, ICE_CAND_TYPE_PRFLX, ICE_TRANS_UDP, 0, sizeof tmp);
 
   ASSERT_TRUE( (strlen(tmp) + 1) == ICELIB_FOUNDATION_LENGTH );
   ASSERT_TRUE( strcmp(tmp, FOUNDATION_PRFLX) == 0);
@@ -542,6 +542,7 @@ CTEST(icelib_ce, create_foundation)
   ICELIB_createFoundation(tmp,
                           ICE_CAND_TYPE_HOST + 999,
                           ICE_TRANS_UDP,
+                          0,
                           sizeof tmp);
 
   ASSERT_TRUE( strlen(tmp) == strlen("unknowntype") );

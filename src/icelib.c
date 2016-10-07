@@ -680,11 +680,16 @@ void
 ICELIB_createFoundation(char*              dst,
                         ICE_CANDIDATE_TYPE type,
                         ICE_TRANSPORT      transport,
+                        int                socketfd,
                         size_t             maxlength)
 {
   int f = compute_foundation(type, transport);
+
   if (f)
   {
+    /* For now use the socket ID to distinguis betwwen different bases. */
+    /* Shoul really look at the IP adressses? */
+    f += socketfd;
     snprintf(dst, maxlength, "%d", f);
   }
   else
@@ -2868,6 +2873,7 @@ ICELIB_makePeerLocalReflexiveCandidate(ICE_CANDIDATE*         pPeerCandidate,
                                        ICELIB_CALLBACK_LOG*   pCallbackLog,
                                        const struct sockaddr* pMappedAddress,
                                        ICE_TRANSPORT          transport,
+                                       int                    socketfd,
                                        uint16_t               componentId)
 {
   ICELIB_resetCandidate(pPeerCandidate);
@@ -2878,6 +2884,7 @@ ICELIB_makePeerLocalReflexiveCandidate(ICE_CANDIDATE*         pPeerCandidate,
   ICELIB_createFoundation(pPeerCandidate->foundation,
                           ICE_CAND_TYPE_PRFLX,
                           transport,
+                          socketfd,
                           ICELIB_FOUNDATION_LENGTH);
   pPeerCandidate->priority = ICELIB_calculatePriority(
     ICE_CAND_TYPE_PRFLX, transport, componentId, 0xffff);
@@ -3160,6 +3167,7 @@ ICELIB_processSuccessResponse(ICELIB_INSTANCE*        pInstance,
                                              &pInstance->callbacks.callbackLog,
                                              pMappedAddress,
                                              pPair->pLocalCandidate->transport,
+                                             pPair->pLocalCandidate->socket,
                                              componentId);
 
       pLocalCandidate = ICELIB_addDiscoveredCandidate(
@@ -3714,7 +3722,7 @@ ICELIB_incomingTimeout(ICELIB_INSTANCE* pInstance,
 
 void
 ICELIB_sendBindingResponse(ICELIB_INSTANCE*       pInstance,
-                           int sockfd,
+                           int                    sockfd,
                            int                    proto,
                            const struct sockaddr* source,
                            const struct sockaddr* destination,
@@ -6494,6 +6502,7 @@ ICELIB_fillLocalCandidate(ICE_CANDIDATE*         cand,
   ICELIB_createFoundation(cand->foundation,
                           candType,
                           transport,
+                          socket,
                           ICELIB_FOUNDATION_LENGTH);
 
   cand->priority = priority;

@@ -633,7 +633,7 @@ CTEST2(data, multiple_medialines)
 
   ASSERT_FALSE( ICELIB_Mangled(m_icelib) );
 
-  for (i = 0; i < 15; i++)
+  for (i = 0; i < 25; i++)
   {
     ICELIB_Tick(m_icelib);
     if (m_connChkCB.gotCB)
