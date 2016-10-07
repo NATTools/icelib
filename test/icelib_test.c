@@ -565,7 +565,6 @@ CTEST(icelib, create_foundation)
                           0,
                           ICE_MAX_FOUNDATION_LENGTH);
 
-  ASSERT_TRUE( (strlen(tmp) + 1) == ICELIB_FOUNDATION_LENGTH );
   ASSERT_TRUE( strcmp(tmp, FOUNDATION_HOST) == 0);
 
   memset( tmp, '#', sizeof(tmp) );
@@ -576,7 +575,6 @@ CTEST(icelib, create_foundation)
                           0,
                           ICE_MAX_FOUNDATION_LENGTH);
 
-  ASSERT_TRUE( (strlen(tmp) + 1) == ICELIB_FOUNDATION_LENGTH );
   ASSERT_TRUE( strcmp(tmp, FOUNDATION_SRFLX) == 0);
 
   memset( tmp, '#', sizeof(tmp) );
@@ -587,7 +585,6 @@ CTEST(icelib, create_foundation)
                           0,
                           ICE_MAX_FOUNDATION_LENGTH);
 
-  ASSERT_TRUE( (strlen(tmp) + 1) == ICELIB_FOUNDATION_LENGTH );
   ASSERT_TRUE( strcmp(tmp, FOUNDATION_RELAY) == 0);
 
   memset( tmp, '#', sizeof(tmp) );
@@ -598,7 +595,6 @@ CTEST(icelib, create_foundation)
                           0,
                           ICE_MAX_FOUNDATION_LENGTH);
 
-  ASSERT_TRUE( (strlen(tmp) + 1) == ICELIB_FOUNDATION_LENGTH );
   ASSERT_TRUE( strcmp(tmp, FOUNDATION_PRFLX) == 0);
 
   memset( tmp, '#', sizeof(tmp) );
@@ -609,7 +605,6 @@ CTEST(icelib, create_foundation)
                           0,
                           ICE_MAX_FOUNDATION_LENGTH);
 
-  ASSERT_TRUE( strlen(tmp) == strlen("unknowntype") );
   ASSERT_TRUE( strcmp(tmp, "unknowntype") == 0);
 
 }

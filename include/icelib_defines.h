@@ -13,7 +13,7 @@
                                                * termination */
 #define ICELIB_PASSWD_LENGTH      (22 + 1)    /* includes zero ('\0')
                                                * termination */
-#define ICELIB_FOUNDATION_LENGTH  (1 + 1)     /* includes zero ('\0')
+#define ICELIB_FOUNDATION_LENGTH  (16 + 1)     /* includes zero ('\0')
                                                * termination */
 
 #define ICE_MAX_UFRAG_PAIR_LENGTH       ( (ICE_MAX_UFRAG_LENGTH      * 2) + 1 )
