@@ -4306,14 +4306,18 @@ ICELIB_processIncommingFull(ICELIB_INSTANCE*       pInstance,
       }
       else
       {
-        pInstance->iceControlling = false;
-        pInstance->iceControlled  = true;
-        ICELIB_recomputeAllPairPriorities(pInstance->streamControllers,
-                                          pInstance->numberOfMediaStreams,
-                                          pInstance->iceControlling);
-        ICELIB_log1(&pInstance->callbacks.callbackLog, ICELIB_logInfo,
+        if(!pInstance->roleHasSwapped){
+          pInstance->roleHasSwapped = !pInstance->roleHasSwapped;
+          pInstance->iceControlling = !pInstance->iceControlling;
+          pInstance->iceControlled  = !pInstance->iceControlled;
+
+          ICELIB_recomputeAllPairPriorities(pInstance->streamControllers,
+                                            pInstance->numberOfMediaStreams,
+                                            pInstance->iceControlling);
+          ICELIB_log1(&pInstance->callbacks.callbackLog, ICELIB_logInfo,
                     "Changing role, iceControlling now: %d!",
                     pInstance->iceControlling);
+        }
       }
     }
   }
