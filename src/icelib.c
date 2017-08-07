@@ -5518,6 +5518,7 @@ ICELIB_ReStart(ICELIB_INSTANCE* pInstance)
     pInstance->tickCount          = 0;
     pInstance->keepAliveTickCount = 0;
     pInstance->tieBreaker         = ICELIB_makeTieBreaker();
+    pInstance->roleHasSwapped     = false;
     ICELIB_resetAllStreamControllers(pInstance);
     memset( &pInstance->remoteIceMedia, 0,
             sizeof (pInstance->remoteIceMedia) );
