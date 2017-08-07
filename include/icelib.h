@@ -249,6 +249,7 @@ typedef struct tag_ICELIB_INSTANCE {
   ICELIB_CALLBACKS         callbacks;
   ICE_MEDIA                localIceMedia;
   ICE_MEDIA                remoteIceMedia;
+  bool                     roleHasSwapped;
   bool                     iceControlling;
   bool                     iceControlled;
   bool                     iceSupportVerified;

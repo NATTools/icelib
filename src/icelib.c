@@ -3494,26 +3494,28 @@ ICELIB_incomingBindingResponse(ICELIB_INSTANCE*       pInstance,
 
     ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logWarning,
                "Error response 487: Role Conflict!");
+    if(!pInstance->roleHasSwapped){
+      pInstance->roleHasSwapped = !pInstance->roleHasSwapped;
+      pInstance->iceControlling = !pInstance->iceControlling;
+      pInstance->iceControlled  = !pInstance->iceControlled;
 
-    pInstance->iceControlling = !pInstance->iceControlling;
-    pInstance->iceControlled  = !pInstance->iceControlled;
+      ICELIB_recomputeAllPairPriorities(pInstance->streamControllers,
+                                        pInstance->numberOfMediaStreams,
+                                        pInstance->iceControlling);
 
-    ICELIB_recomputeAllPairPriorities(pInstance->streamControllers,
-                                      pInstance->numberOfMediaStreams,
-                                      pInstance->iceControlling);
+      ICELIB_log1(&pInstance->callbacks.callbackLog, ICELIB_logWarning,
+                  "Changing role, iceControlling now: %d!",
+                  pInstance->iceControlling);
 
-    ICELIB_log1(&pInstance->callbacks.callbackLog, ICELIB_logWarning,
-                "Changing role, iceControlling now: %d!",
-                pInstance->iceControlling);
+      ICELIB_changePairState(pPair,
+                             ICELIB_PAIR_WAITING,
+                             &pInstance->callbacks.callbackLog);
 
-    ICELIB_changePairState(pPair,
-                           ICELIB_PAIR_WAITING,
-                           &pInstance->callbacks.callbackLog);
-
-    if ( ICELIB_triggeredFifoPut(pTriggeredChecksFifo, pPair) )
-    {
-      ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logError,
-                 "Triggered check queue full!");
+      if ( ICELIB_triggeredFifoPut(pTriggeredChecksFifo, pPair) )
+      {
+        ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logError,
+                   "Triggered check queue full!");
+      }
     }
     return;
   }
