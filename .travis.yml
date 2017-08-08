@@ -1,6 +1,6 @@
 language: c
 compiler:
-- clang
+
 - gcc
 env:
 - COVERAGE=true
@@ -25,6 +25,7 @@ before_install:
   - export PATH=$HOME/.local/bin:$PATH
   - pip install cpp-coveralls --user `whoami`
 script:
+- sudo unlink /usr/bin/gcc && sudo ln -s /usr/bin/gcc-5 /usr/bin/gcc
 - ./build.sh all test
 after_success:
 - if [[ $COVERAGE == 'true' ]]; then ./coverage.sh; cd build && make package_source; fi
