@@ -157,6 +157,7 @@ typedef enum {
 }ICE_TURN_STATE;
 
 typedef enum {
+  ICE_TRANS_NONE,
   ICE_TRANS_UDP,
   ICE_TRANS_TCPACT,
   ICE_TRANS_TCPPASS
@@ -178,6 +179,7 @@ typedef struct {
   char                    foundation[ ICE_MAX_FOUNDATION_LENGTH];
   uint32_t                componentid;
   uint32_t                priority;
+  int                     socket;
   struct sockaddr_storage connectionAddr;
   ICE_TRANSPORT           transport;
   ICE_CANDIDATE_TYPE      type;
@@ -260,6 +262,8 @@ typedef struct {
 typedef struct {
   ICELIB_LIST_VL pairs;
   uint32_t       nextPairId;
+  uint32_t       readyToNominateWeighting;
+  uint32_t       nominatedPathScore;
 } ICELIB_VALIDLIST;
 
 
@@ -320,6 +324,12 @@ char const*
 ICELIBTYPES_ICE_CANDIDATE_TYPE_toString(const ICE_CANDIDATE_TYPE candidateType);
 char const*
 ICELIBTYPES_ICE_CANDIDATE_Component_toString (uint32_t componentid);
+
+char const*
+ICELIBTYPES_ICE_TRANSPORT_toString(ICE_TRANSPORT t);
+
+char const*
+ICELIBTYPES_ICE_TRANSPORT_PROTO_toString(const ICE_TRANSPORT t);
 
 int
 ICE_TRANSPORT_proto(ICE_TRANSPORT transport);

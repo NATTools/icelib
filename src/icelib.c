@@ -27,6 +27,7 @@ remoteLocalTransportMatch(ICE_TRANSPORT a,
 {
   switch (a)
   {
+  case ICE_TRANS_NONE:      return false;
   case ICE_TRANS_UDP:       return b == ICE_TRANS_UDP;
   case ICE_TRANS_TCPACT:    return b == ICE_TRANS_TCPPASS;
   case ICE_TRANS_TCPPASS:   return b == ICE_TRANS_TCPACT;
@@ -35,18 +36,7 @@ remoteLocalTransportMatch(ICE_TRANSPORT a,
   abort();
 }
 
-static char const*
-ICE_TRANSPORT_toString(ICE_TRANSPORT t)
-{
-  switch (t)
-  {
-  case ICE_TRANS_UDP: return "udp";
-  case ICE_TRANS_TCPACT: return "tcpact";
-  case ICE_TRANS_TCPPASS: return "tcppass";
-  }
 
-  abort();
-}
 
 typedef union {
   ICELIB_uint128_t ui128;
@@ -120,6 +110,7 @@ isPassiveTransport(ICE_TRANSPORT transport)
   case ICE_TRANS_TCPPASS:
     return true;
 
+  case ICE_TRANS_NONE:
   case ICE_TRANS_UDP:
   case ICE_TRANS_TCPACT:
     break;
@@ -627,6 +618,7 @@ ICELIB_calculatePriority(ICE_CANDIDATE_TYPE type,
     break;
 
   case ICE_TRANS_UDP:
+  case ICE_TRANS_NONE:
     break;
   }
 
@@ -655,6 +647,7 @@ compute_transport_foundation(ICE_TRANSPORT transport)
 {
   switch (transport)
   {
+  case ICE_TRANS_NONE: break;
   case ICE_TRANS_UDP: break;
   case ICE_TRANS_TCPACT: return 1;
   case ICE_TRANS_TCPPASS: return 2;
@@ -687,11 +680,16 @@ void
 ICELIB_createFoundation(char*              dst,
                         ICE_CANDIDATE_TYPE type,
                         ICE_TRANSPORT      transport,
+                        int                socketfd,
                         size_t             maxlength)
 {
   int f = compute_foundation(type, transport);
+
   if (f)
   {
+    /* For now use the socket ID to distinguis betwwen different bases. */
+    /* Shoul really look at the IP adressses? */
+    f += socketfd;
     snprintf(dst, maxlength, "%d", f);
   }
   else
@@ -1940,6 +1938,7 @@ ICELIB_scheduleCheck(ICELIB_INSTANCE*  pInstance,
     }
     BindingRequest(pInstance->callbacks.callbackRequest.pBindingRequestUserData,
                    ICE_TRANSPORT_proto(pPair->pLocalCandidate->transport),
+                   pPair->pLocalCandidate->socket,
                    (struct sockaddr*)&pPair->pRemoteCandidate->connectionAddr,
                    (struct sockaddr*)&pPair->pLocalCandidate->connectionAddr,
                    pPair->pLocalCandidate->userValue1,
@@ -2874,6 +2873,7 @@ ICELIB_makePeerLocalReflexiveCandidate(ICE_CANDIDATE*         pPeerCandidate,
                                        ICELIB_CALLBACK_LOG*   pCallbackLog,
                                        const struct sockaddr* pMappedAddress,
                                        ICE_TRANSPORT          transport,
+                                       int                    socketfd,
                                        uint16_t               componentId)
 {
   ICELIB_resetCandidate(pPeerCandidate);
@@ -2884,6 +2884,7 @@ ICELIB_makePeerLocalReflexiveCandidate(ICE_CANDIDATE*         pPeerCandidate,
   ICELIB_createFoundation(pPeerCandidate->foundation,
                           ICE_CAND_TYPE_PRFLX,
                           transport,
+                          socketfd,
                           ICELIB_FOUNDATION_LENGTH);
   pPeerCandidate->priority = ICELIB_calculatePriority(
     ICE_CAND_TYPE_PRFLX, transport, componentId, 0xffff);
@@ -3166,6 +3167,7 @@ ICELIB_processSuccessResponse(ICELIB_INSTANCE*        pInstance,
                                              &pInstance->callbacks.callbackLog,
                                              pMappedAddress,
                                              pPair->pLocalCandidate->transport,
+                                             pPair->pLocalCandidate->socket,
                                              componentId);
 
       pLocalCandidate = ICELIB_addDiscoveredCandidate(
@@ -3492,26 +3494,28 @@ ICELIB_incomingBindingResponse(ICELIB_INSTANCE*       pInstance,
 
     ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logWarning,
                "Error response 487: Role Conflict!");
+    if(!pInstance->roleHasSwapped){
+      pInstance->roleHasSwapped = !pInstance->roleHasSwapped;
+      pInstance->iceControlling = !pInstance->iceControlling;
+      pInstance->iceControlled  = !pInstance->iceControlled;
 
-    pInstance->iceControlling = !pInstance->iceControlling;
-    pInstance->iceControlled  = !pInstance->iceControlled;
+      ICELIB_recomputeAllPairPriorities(pInstance->streamControllers,
+                                        pInstance->numberOfMediaStreams,
+                                        pInstance->iceControlling);
 
-    ICELIB_recomputeAllPairPriorities(pInstance->streamControllers,
-                                      pInstance->numberOfMediaStreams,
-                                      pInstance->iceControlling);
+      ICELIB_log1(&pInstance->callbacks.callbackLog, ICELIB_logWarning,
+                  "Changing role, iceControlling now: %d!",
+                  pInstance->iceControlling);
 
-    ICELIB_log1(&pInstance->callbacks.callbackLog, ICELIB_logWarning,
-                "Changing role, iceControlling now: %d!",
-                pInstance->iceControlling);
+      ICELIB_changePairState(pPair,
+                             ICELIB_PAIR_WAITING,
+                             &pInstance->callbacks.callbackLog);
 
-    ICELIB_changePairState(pPair,
-                           ICELIB_PAIR_WAITING,
-                           &pInstance->callbacks.callbackLog);
-
-    if ( ICELIB_triggeredFifoPut(pTriggeredChecksFifo, pPair) )
-    {
-      ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logError,
-                 "Triggered check queue full!");
+      if ( ICELIB_triggeredFifoPut(pTriggeredChecksFifo, pPair) )
+      {
+        ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logError,
+                   "Triggered check queue full!");
+      }
     }
     return;
   }
@@ -3720,6 +3724,7 @@ ICELIB_incomingTimeout(ICELIB_INSTANCE* pInstance,
 
 void
 ICELIB_sendBindingResponse(ICELIB_INSTANCE*       pInstance,
+                           int                    sockfd,
                            int                    proto,
                            const struct sockaddr* source,
                            const struct sockaddr* destination,
@@ -3744,6 +3749,7 @@ ICELIB_sendBindingResponse(ICELIB_INSTANCE*       pInstance,
       userValue1,
       userValue2,
       componentId,
+      sockfd,
       proto,
       source,
       destination,
@@ -3759,6 +3765,7 @@ ICELIB_sendBindingResponse(ICELIB_INSTANCE*       pInstance,
 void
 ICELIB_processSuccessRequest(ICELIB_INSTANCE*        pInstance,
                              StunMsgId               transactionId,
+                             int                     sockfd,
                              int                     proto,
                              const struct sockaddr*  source,
                              const struct sockaddr*  destination,
@@ -4062,6 +4069,7 @@ beach:
   if (sendBindResponse)
   {
     ICELIB_sendBindingResponse(pInstance, /* pInstance */
+                               sockfd,
                                proto,
                                destination,            /* source */
                                source,                 /* destination */
@@ -4160,6 +4168,7 @@ ICELIB_processIncommingFull(ICELIB_INSTANCE*       pInstance,
                             bool                   iceControlled,
                             uint64_t               tieBreaker,
                             StunMsgId              transactionId,
+                            int                    sockfd,
                             int                    proto,
                             const struct sockaddr* source,
                             const struct sockaddr* destination,
@@ -4234,6 +4243,7 @@ ICELIB_processIncommingFull(ICELIB_INSTANCE*       pInstance,
         list_pwd = ICELIB_getCheckListLocalPasswd(pCheckList);
 
         ICELIB_sendBindingResponse(pInstance, /* pInstance */
+                                   sockfd,
                                    proto,
                                    destination,              /* source */
                                    source,                   /* destination */
@@ -4280,6 +4290,7 @@ ICELIB_processIncommingFull(ICELIB_INSTANCE*       pInstance,
       if (pInstance->tieBreaker >= tieBreaker)
       {
         ICELIB_sendBindingResponse( pInstance,
+                                    sockfd,
                                     proto,
                                     destination,
                                     source,
@@ -4295,14 +4306,18 @@ ICELIB_processIncommingFull(ICELIB_INSTANCE*       pInstance,
       }
       else
       {
-        pInstance->iceControlling = false;
-        pInstance->iceControlled  = true;
-        ICELIB_recomputeAllPairPriorities(pInstance->streamControllers,
-                                          pInstance->numberOfMediaStreams,
-                                          pInstance->iceControlling);
-        ICELIB_log1(&pInstance->callbacks.callbackLog, ICELIB_logInfo,
+        if(!pInstance->roleHasSwapped){
+          pInstance->roleHasSwapped = !pInstance->roleHasSwapped;
+          pInstance->iceControlling = !pInstance->iceControlling;
+          pInstance->iceControlled  = !pInstance->iceControlled;
+
+          ICELIB_recomputeAllPairPriorities(pInstance->streamControllers,
+                                            pInstance->numberOfMediaStreams,
+                                            pInstance->iceControlling);
+          ICELIB_log1(&pInstance->callbacks.callbackLog, ICELIB_logInfo,
                     "Changing role, iceControlling now: %d!",
                     pInstance->iceControlling);
+        }
       }
     }
   }
@@ -4326,6 +4341,7 @@ ICELIB_processIncommingFull(ICELIB_INSTANCE*       pInstance,
       else
       {
         ICELIB_sendBindingResponse( pInstance,
+                                    sockfd,
                                     proto,
                                     destination,
                                     source,
@@ -4354,6 +4370,7 @@ ICELIB_processIncommingFull(ICELIB_INSTANCE*       pInstance,
                 "Received UfragPair was: '%s'",
                 pUfragPair);
     ICELIB_sendBindingResponse( pInstance,
+                                sockfd,
                                 proto,
                                 destination,
                                 source,
@@ -4374,6 +4391,7 @@ ICELIB_processIncommingFull(ICELIB_INSTANCE*       pInstance,
 
   ICELIB_processSuccessRequest(pInstance,
                                transactionId,
+                               sockfd,
                                proto,
                                source,
                                destination,
@@ -4408,6 +4426,7 @@ ICELIB_incomingBindingRequest(ICELIB_INSTANCE*       pInstance,
                               bool                   iceControlled,
                               uint64_t               tieBreaker,
                               StunMsgId              transactionId,
+                              int                    sockfd,
                               int                    proto,
                               const struct sockaddr* source,
                               const struct sockaddr* destination,
@@ -4459,6 +4478,7 @@ ICELIB_incomingBindingRequest(ICELIB_INSTANCE*       pInstance,
                                 iceControlled,
                                 tieBreaker,
                                 transactionId,
+                                sockfd,
                                 proto,
                                 source,
                                 destination,
@@ -5140,26 +5160,31 @@ ICELIB_updatingStates(ICELIB_INSTANCE* pInstance)
 
       /* If aggressive and nominated pair exist, this is actually a sucsess */
       /* Maybee check for partial failures..?? */
-      if ( pInstance->iceConfiguration.aggressiveNomination &&
-           (ICELIB_countNominatedPairsInValidList(pValidList) > 0) )
+      if (pInstance->iceConfiguration.aggressiveNomination)
       {
-        pInstance->iceState = ICELIB_COMPLETED;
-        ICELIB_storeRemoteCandidates(pInstance);
-        ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logInfo,
-                   "ICE sucsess agressive (Timeout)");
-        if (ConnectivityCheckComplete != NULL)
-        {
-          ConnectivityCheckComplete(
-            pInstance->callbacks.callbackComplete.pConnectivityChecksCompleteUserData,
-            pInstance->localIceMedia.mediaStream[0].userValue1,
-            pInstance->iceControlling,
-            false);
-        }
 
+        if (ICELIB_countNominatedPairsInValidList(pValidList) > 0)
+        {
+          pCheckList->checkListState = ICELIB_CHECKLIST_COMPLETED;
+        }
+        else
+        {
+          pInstance->iceState = ICELIB_FAILED;
+          /* ICELIB_storeRemoteCandidates(pInstance); */
+          ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logInfo,
+                     "ICE failed agressive (Timeout)");
+          if (ConnectivityCheckComplete != NULL)
+          {
+            ConnectivityCheckComplete(
+              pInstance->callbacks.callbackComplete.pConnectivityChecksCompleteUserData,
+              pInstance->localIceMedia.mediaStream[0].userValue1,
+              pInstance->iceControlling,
+              true);
+          }
+        }
       }
       else
       {
-
         pInstance->iceState = ICELIB_FAILED;
         ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logInfo,
                    "ICE failed (Timeout)");
@@ -5497,6 +5522,7 @@ ICELIB_ReStart(ICELIB_INSTANCE* pInstance)
     pInstance->tickCount          = 0;
     pInstance->keepAliveTickCount = 0;
     pInstance->tieBreaker         = ICELIB_makeTieBreaker();
+    pInstance->roleHasSwapped     = false;
     ICELIB_resetAllStreamControllers(pInstance);
     memset( &pInstance->remoteIceMedia, 0,
             sizeof (pInstance->remoteIceMedia) );
@@ -5941,7 +5967,7 @@ ICELIB_candidateDumpLog(const ICELIB_CALLBACK_LOG* pCallbackLog,
                         (struct sockaddr*)&candidate->connectionAddr);
   ICELIB_logVaString( pCallbackLog, logLevel, " Type: '%s' ", ICELIBTYPES_ICE_CANDIDATE_TYPE_toString(
                         candidate->type) );
-  ICELIB_logVaString( pCallbackLog, logLevel, "Trans: %s",    ICE_TRANSPORT_toString(
+  ICELIB_logVaString( pCallbackLog, logLevel, "Trans: %s",    ICELIBTYPES_ICE_TRANSPORT_toString(
                         candidate->transport) );
   ICELIB_logVaString( pCallbackLog,
                       logLevel,
@@ -6457,6 +6483,7 @@ ICELIB_fillRemoteCandidate(ICE_CANDIDATE*     cand,
 void
 ICELIB_fillLocalCandidate(ICE_CANDIDATE*         cand,
                           uint32_t               componentId,
+                          int                    socket,
                           const struct sockaddr* connectionAddr,
                           const struct sockaddr* relAddr,
                           ICE_TRANSPORT          transport,
@@ -6470,6 +6497,7 @@ ICELIB_fillLocalCandidate(ICE_CANDIDATE*         cand,
 
   sockaddr_copy( (struct sockaddr*)&cand->connectionAddr,
                  (struct sockaddr*)connectionAddr );
+  cand->socket      = socket;
   cand->type        = candType;
   cand->componentid = componentId;
   cand->transport   = transport;
@@ -6481,6 +6509,7 @@ ICELIB_fillLocalCandidate(ICE_CANDIDATE*         cand,
   ICELIB_createFoundation(cand->foundation,
                           candType,
                           transport,
+                          socket,
                           ICELIB_FOUNDATION_LENGTH);
 
   cand->priority = priority;
@@ -6497,6 +6526,7 @@ int32_t
 ICELIB_addLocalCandidate(ICELIB_INSTANCE*       pInstance,
                          uint32_t               mediaIdx,
                          uint32_t               componentId,
+                         int                    socket,
                          const struct sockaddr* connectionAddr,
                          const struct sockaddr* relAddr,
                          ICE_TRANSPORT          transport,
@@ -6530,6 +6560,7 @@ ICELIB_addLocalCandidate(ICELIB_INSTANCE*       pInstance,
 
   ICELIB_fillLocalCandidate(cand,
                             componentId,
+                            socket,
                             connectionAddr,
                             relAddr,
                             transport,

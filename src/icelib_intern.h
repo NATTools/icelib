@@ -17,7 +17,7 @@ extern "C" {
 
 #define ICELIB_log1(pCallbacks, level, message, arg1) ICELIB_log_(pCallbacks, \
                                                                   level, \
-                                                                  __FUNCTION__, \
+                                                                  __func__, \
                                                                   __FILE__, \
                                                                   __LINE__, \
                                                                   message, \
@@ -25,7 +25,7 @@ extern "C" {
 
 #define ICELIB_log(pCallbacks, level, message) ICELIB_log_(pCallbacks,  \
                                                            level,       \
-                                                           __FUNCTION__, \
+                                                           __func__, \
                                                            __FILE__,    \
                                                            __LINE__,    \
                                                            message)
@@ -122,6 +122,7 @@ ICELIB_EliminateRedundantCandidates(ICELIB_INSTANCE* pInstance);
 void
 ICELIB_fillLocalCandidate(ICE_CANDIDATE*         cand,
                           uint32_t               componentId,
+                          int                    socket,
                           const struct sockaddr* connectionAddr,
                           const struct sockaddr* relAddr,
                           ICE_TRANSPORT          transport,
@@ -371,6 +372,7 @@ ICELIB_makePeerLocalReflexiveCandidate(ICE_CANDIDATE*         pPeerCandidate,
                                        ICELIB_CALLBACK_LOG*   pCallbackLog,
                                        const struct sockaddr* pMappedAddress,
                                        ICE_TRANSPORT          transport,
+                                       int                    socketfd,
                                        uint16_t               componentId);
 
 void
@@ -407,6 +409,7 @@ ICELIB_processSuccessResponse(ICELIB_INSTANCE*        pInstance,
 
 void
 ICELIB_sendBindingResponse(ICELIB_INSTANCE*       pInstance,
+                           int                    sockfd,
                            int                    proto,
                            const struct sockaddr* source,
                            const struct sockaddr* destination,
@@ -422,6 +425,7 @@ ICELIB_sendBindingResponse(ICELIB_INSTANCE*       pInstance,
 void
 ICELIB_processSuccessRequest(ICELIB_INSTANCE*        pInstance,
                              StunMsgId               transactionId,
+                             int                     sockfd,
                              int                     proto,
                              const struct sockaddr*  source,
                              const struct sockaddr*  destination,
@@ -467,6 +471,7 @@ ICELIB_processIncommingFull(ICELIB_INSTANCE*       pInstance,
                             bool                   iceControlled,
                             uint64_t               tieBreaker,
                             StunMsgId              transactionId,
+                            int                    sockfd,
                             int                    proto,
                             const struct sockaddr* source,
                             const struct sockaddr* destination,
@@ -590,6 +595,7 @@ void
 ICELIB_createFoundation(char*              dst,
                         ICE_CANDIDATE_TYPE type,
                         ICE_TRANSPORT      transport,
+                        int                socketfd,
                         size_t             maxlength);
 
 void

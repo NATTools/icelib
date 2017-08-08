@@ -69,9 +69,9 @@ include_directories ( ${CMAKE_CURRENT_BINARY_DIR} )
 if ( CMAKE_C_COMPILER_ID STREQUAL "GNU" OR
      CMAKE_C_COMPILER_ID MATCHES "Clang" )
   message ( STATUS "adding GCC/Clang options ")
-  add_definitions ( -std=gnu99 -Wall -Wextra -pedantic )
+  add_definitions ( -std=gnu11 -Wall -Wextra -pedantic )
   ## disable VLA "is a GNU extension" warning
-  add_definitions ( -Wno-gnu-zero-variadic-macro-arguments )
+  ##add_definitions ( -Wno-gnu-zero-variadic-macro-arguments )
   if ( fatal_warnings )
     add_definitions ( -Werror )
   endif ()
@@ -151,7 +151,7 @@ Include(ExternalProject)
 ExternalProject_Add(
    project_sockaddrutil
    GIT_REPOSITORY https://github.com/NATTools/sockaddrutil.git
-   CMAKE_ARGS -Doptimize=OFF -Duse_context=ON -Dbuild_docs=OFF -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+   CMAKE_ARGS -Doptimize=OFF -Dbuild_docs=OFF -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
    INSTALL_DIR "${dist_dir}"
    UPDATE_DISCONNECTED 1
 )
@@ -166,7 +166,7 @@ add_dependencies(sockaddrutil project_sockaddrutil)
 ExternalProject_Add(
    project_stunlib
    GIT_REPOSITORY https://github.com/NATTools/stunlib.git
-   CMAKE_ARGS -Doptimize=OFF -Duse_context=ON -Dbuild_docs=OFF -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+   CMAKE_ARGS -Doptimize=OFF -Dbuild_docs=OFF -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
    INSTALL_DIR "${dist_dir}"
    UPDATE_DISCONNECTED 1
 )
