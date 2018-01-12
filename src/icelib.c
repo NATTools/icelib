@@ -4522,10 +4522,14 @@ bool
 ICELIB_isNominatingCriteriaMet(ICELIB_VALIDLIST* pValidList,
                                ICELIB_CHECKLIST* pCheckList)
 {
-  /* This is iffy, must change all of this. Just to get going... */
-  bool compOk[ICE_MAX_COMPONENTS];
+  /*
+   * Ready to nominate if at least one of the below is true:
+   * 1. We've validated the pair with the highest priority
+   * 2. All pairs have finished (failed or succeeded) and we have at least one valid one
+   */
+  bool have_highest_priority_pair[ICE_MAX_COMPONENTS];
 
-  memset(&compOk, 0, sizeof compOk);
+  memset(&have_highest_priority_pair, 0, sizeof have_highest_priority_pair);
 
   for (uint32_t i = 0; i < pCheckList->componentList.numberOfComponents; i++)
   {
@@ -4537,19 +4541,26 @@ ICELIB_isNominatingCriteriaMet(ICELIB_VALIDLIST* pValidList,
       if ( (pValidList->pairs.elements[j].pairPriority == max_priority) &&
            (pValidList->pairs.elements[j].pLocalCandidate->componentid == id) )
       {
-        compOk[i] = true;
+        have_highest_priority_pair[i] = true;
       }
     }
   }
 
+  bool have_highest_priority_for_all_components = true;
   for (uint32_t i = 0; i < pCheckList->componentList.numberOfComponents; i++)
   {
-    if (compOk[i] == false)
+    if (!have_highest_priority_pair[i])
     {
-      return false;
+      have_highest_priority_for_all_components = false;
+      break;
     }
   }
-  return true;
+  if (have_highest_priority_for_all_components)
+  {
+    return true;
+  }
+
+  return ICELIB_isAllPairsFailedOrSucceded(pCheckList);
 }
 
 bool
