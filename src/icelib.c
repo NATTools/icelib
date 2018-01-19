@@ -3482,7 +3482,7 @@ ICELIB_incomingBindingResponse(ICELIB_INSTANCE*       pInstance,
   /*  */
 /* ----- Handle a 487 Role Conflict error response */
 /*  */
-/*      ICE-19: 7.1.2.1 Failure Cases */
+/*      ICE-19: 7.1.3.1 Failure Cases */
 /*  */
 /*      Invert CONTROLLING state. */
 /*      Bug in ICE-19: should also recompute priorities */
@@ -3494,6 +3494,7 @@ ICELIB_incomingBindingResponse(ICELIB_INSTANCE*       pInstance,
 
     ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logWarning,
                "Error response 487: Role Conflict!");
+
     if(!pInstance->roleHasSwapped){
       pInstance->roleHasSwapped = !pInstance->roleHasSwapped;
       pInstance->iceControlling = !pInstance->iceControlling;
@@ -3506,17 +3507,18 @@ ICELIB_incomingBindingResponse(ICELIB_INSTANCE*       pInstance,
       ICELIB_log1(&pInstance->callbacks.callbackLog, ICELIB_logWarning,
                   "Changing role, iceControlling now: %d!",
                   pInstance->iceControlling);
-
-      ICELIB_changePairState(pPair,
-                             ICELIB_PAIR_WAITING,
-                             &pInstance->callbacks.callbackLog);
-
-      if ( ICELIB_triggeredFifoPut(pTriggeredChecksFifo, pPair) )
-      {
-        ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logError,
-                   "Triggered check queue full!");
-      }
     }
+
+    ICELIB_changePairState(pPair,
+                           ICELIB_PAIR_WAITING,
+                           &pInstance->callbacks.callbackLog);
+
+    if ( ICELIB_triggeredFifoPut(pTriggeredChecksFifo, pPair) )
+    {
+      ICELIB_log(&pInstance->callbacks.callbackLog, ICELIB_logError,
+                 "Triggered check queue full!");
+    }
+
     return;
   }
 
