@@ -5,7 +5,6 @@
 #ifndef ICELIBTYPES_H
 #define ICELIBTYPES_H
 
-#include "icelib_defines.h"
 #include "stunlib.h"
 
 #include <stdbool.h>
@@ -20,14 +19,11 @@ extern "C" {
 #include <stdbool.h>
 #endif
 
-
-#define ICE_MAX_UFRAG_LENGTH                (256 + 1) /* zero terminated */
-#define ICE_MAX_PASSWD_LENGTH               (256 + 1) /* zero terminated */
-#define ICE_MAX_CANDIDATES                  32
-#define ICE_MAX_FOUNDATION_LENGTH           (32 + 1)  /* zero terminated */
-#define ICE_MAX_MEDIALINES                  20
-#define ICE_MAX_COMPONENTS                  2
-
+#ifdef ICELIB_CUSTOM_CONFIG
+#include ICELIB_CUSTOM_CONFIG
+#else
+#include "icelib_config.h"
+#endif
 
 /* -----------------------------------------------------------------------------
  * */

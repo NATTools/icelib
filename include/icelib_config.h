@@ -2,8 +2,8 @@
  *  See License file
  */
 
-#ifndef ICELIB_DEFINE_H
-#define ICELIB_DEFINE_H
+#ifndef ICELIB_ICELIB_CONFIG_H
+#define ICELIB_ICELIB_CONFIG_H
 
 #define ICELIB_RANDOM_SEGMENT_LENGTH    (32 / 6)
 
@@ -36,5 +36,11 @@
 
 #define ICELIB_FAIL_AFTER_MS                5000 /*5 sec*/
 
+#define ICE_MAX_UFRAG_LENGTH                (256 + 1) /* zero terminated */
+#define ICE_MAX_PASSWD_LENGTH               (256 + 1) /* zero terminated */
+#define ICE_MAX_CANDIDATES                  32
+#define ICE_MAX_FOUNDATION_LENGTH           (32 + 1)  /* zero terminated */
+#define ICE_MAX_MEDIALINES                  20
+#define ICE_MAX_COMPONENTS                  2
 
-#endif
+#endif //ICELIB_ICELIB_CONFIG_H

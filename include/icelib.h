@@ -9,7 +9,6 @@
 
 #include "sockaddr_util.h"
 #include "icelibtypes.h"
-#include "icelib_defines.h"
 
 #include <stdint.h>
 
